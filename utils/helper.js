@@ -7,3 +7,14 @@ exports.createToken = (userId, userName) => {
   });
   return token;
 };
+
+exports.verifyToken = (token) => {
+  const isVerify = { decodedToken: null };
+  try {
+    const decodedToken = jsonwebtoken.verify(token, config.jwt.secret);
+    return isVerify.decodedToken = decodedToken;
+  } catch (error) {
+    console.log("helper'da hata oldu verify tokende");
+    throw new Error("Token validate sırasında hata oluştu");
+  }
+};

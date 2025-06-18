@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const config = require("./configs/index");
 const db = require("./db/index");
+const middlewares = require ("./middlewares/index")
 
 const router = require("./routers/index");
 const ROUTER_PREFIX = require("./consts/router.prefix.consts");
@@ -10,6 +11,8 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+app.use(middlewares.authMiddleware);
 
 app.get("/", (req, res) => res.send("API Çalışıyor..."));
 
