@@ -13,9 +13,10 @@ exports.register = async (req) => {
   }
   const user = new User({ name, email, password });
   await user.save();
+  const token = utils.helper.createToken(user._id, user.name);
   const userResponse = user.toObject();
   delete userResponse.password;
-  return userResponse;
+  return { user: userResponse, token };
 };
 
 exports.login = async (req) => {
@@ -32,6 +33,7 @@ exports.login = async (req) => {
     err.statusCode = StatusCodes.UNAUTHORIZED;
     throw err;
   }
+
   const token = utils.helper.createToken(user._id, user.name);
   const userResponse = user.toObject();
   delete userResponse.password;
