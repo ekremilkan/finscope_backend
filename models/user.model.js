@@ -1,18 +1,38 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const config = require("../configs/index");
 
 const userSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, trim: true },
+    name: { 
+      type: String, 
+      required: true, 
+      trim: true,
+      minlength: 2,
+      maxlength: 50,
+      match: /^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/
+    },
     email: {
       type: String,
       required: true,
       unique: true,
       trim: true,
       lowercase: true,
+      match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     },
-    password: { type: String, required: true, minlength: 6 },
+    password: { 
+      type: String, 
+      required: true, 
+      minlength: 8,
+      validate: {
+        validator: function(password) {
+          // Güçlü şifre kontrolü: en az 1 büyük, 1 küçük, 1 rakam, 1 özel karakter
+          return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/.test(password);
+        },
+        message: 'Şifre en az bir büyük harf, bir küçük harf, bir rakam ve bir özel karakter içermelidir'
+      }
+    },
     // Access token alanı eklendi
     accessToken: {
       type: String,
@@ -23,13 +43,40 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Şifre değişiklik tarihi
+    passwordChangedAt: {
+      type: Date,
+      default: Date.now
+    },
+    // Hesap kilitlenme bilgileri
+    loginAttempts: {
+      type: Number,
+      default: 0
+    },
+    lockUntil: Date
   },
-  { timestamps: true }
+  { 
+    timestamps: true,
+    // Şifre alanını select'ten hariç tut
+    toJSON: { 
+      transform: function(doc, ret) {
+        delete ret.password;
+        delete ret.accessToken;
+        return ret;
+      }
+    }
+  }
 );
 
+// Şifre değişiklik middleware'i
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-  const salt = await bcrypt.genSalt(10);
+  
+  // Şifre değişiklik tarihini güncelle
+  this.passwordChangedAt = new Date();
+  
+  // Şifreyi hashle
+  const salt = await bcrypt.genSalt(12); // Salt round'u artırdık
   this.password = await bcrypt.hash(this.password, salt);
   next();
 });
@@ -42,8 +89,8 @@ userSchema.methods.generateAccessToken = function () {
       email: this.email,
       name: this.name 
     },
-    process.env.JWT_SECRET || "your-secret-key", // .env dosyasından al
-    { expiresIn: "7d" } // 7 gün geçerli
+    config.jwt.secret, // Config'den güvenli şekilde al
+    { expiresIn: config.jwt.expiresIn }
   );
   
   // Token'ı database'e kaydet
@@ -62,6 +109,38 @@ userSchema.methods.clearAccessToken = function () {
 // Password karşılaştırma method'u
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Hesap kilitleme kontrolü
+userSchema.virtual('isLocked').get(function() {
+  return !!(this.lockUntil && this.lockUntil > Date.now());
+});
+
+// Login denemeleri artırma
+userSchema.methods.incLoginAttempts = function() {
+  // Eğer lockUntil geçmişse, sıfırla
+  if (this.lockUntil && this.lockUntil < Date.now()) {
+    return this.updateOne({
+      $unset: { lockUntil: 1 },
+      $set: { loginAttempts: 1 }
+    });
+  }
+  
+  const updates = { $inc: { loginAttempts: 1 } };
+  
+  // 5 başarısız denemeden sonra hesabı 30 dakika kilitle
+  if (this.loginAttempts + 1 >= 5 && !this.isLocked) {
+    updates.$set = { lockUntil: Date.now() + 30 * 60 * 1000 }; // 30 dakika
+  }
+  
+  return this.updateOne(updates);
+};
+
+// Başarılı login sonrası sıfırla
+userSchema.methods.resetLoginAttempts = function() {
+  return this.updateOne({
+    $unset: { loginAttempts: 1, lockUntil: 1 }
+  });
 };
 
 const User = mongoose.model("User", userSchema);
