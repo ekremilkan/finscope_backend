@@ -18,3 +18,15 @@ exports.verifyToken = (token) => {
     throw new Error("Token validate sırasında hata oluştu");
   }
 };
+
+exports.createRefreshToken = (user) => {
+  const refreshToken = jsonwebtoken.sign(
+    {
+      _id: user._id,
+      email: user.email,
+    },
+    process.env.REFRESH_SECRETKEY,
+    { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN }
+  );
+  return refreshToken;
+};

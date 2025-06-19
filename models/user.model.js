@@ -34,7 +34,7 @@ const userSchema = new mongoose.Schema(
       }
     },
     // Access token alanı eklendi
-    accessToken: {
+    refreshToken: {
       type: String,
       default: null,
     },
