@@ -6,7 +6,9 @@ const config = {
   appPrefix: process.env.APP_PREFIX,
   jwt: {
     secret: process.env.SECRETKEY,
+    refreshSecret:process.env.REFRESH_SECRETKEY,
     expiresIn: process.env.EXPIRESIN,
+    refreshExpiresIn:process.env.REFRESH_TOKEN_EXPIRES_IN,
   },
 };
 

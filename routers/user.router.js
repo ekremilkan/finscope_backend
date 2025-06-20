@@ -6,9 +6,9 @@ const middlewares = require("../middlewares/index");
 const router = express.Router();
 
 router.post(
-  "/register", 
+  "/register",
   middlewares.rateLimiter.registerLimiter,
-  validation.userValidation.validateRegister, 
+  validation.userValidation.validateRegister,
   controller.userController.register
 );
 
@@ -23,5 +23,7 @@ router.get(
   "/profile",
   controller.userController.getProfile // Token geçerliyse bu fonksiyon çalışır
 );
+
+router.post("/logout/:userId", controller.userController.logout);
 
 module.exports = { user: router };

@@ -80,10 +80,12 @@ exports.login = async (req) => {
   return { user: userResponse, token, refreshToken };
 };
 
-exports.logout = async (userId) => {
+exports.logout = async (req) => {
+  const { userId } = req.params;
   const user = await User.findById(userId);
   if (user) {
     user.clearAccessToken();
+    user.refreshToken = null;
     await user.save();
   }
   return { message: "Başarıyla çıkış yapıldı" };

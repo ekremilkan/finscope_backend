@@ -41,6 +41,25 @@ exports.login = async (req, res) => {
     });
   }
 };
+exports.logout = async (req, res) => {
+  try {
+    const data = await userService.user.logout(req);
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Çıkış başarılı",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
 exports.getProfile = async (req, res) => {
   // Middleware token'ı doğrulayıp kullanıcıyı req.user'a eklediği için,
   // burada veritabanına tekrar gitmemize gerek yok.

@@ -48,7 +48,7 @@ module.exports = async (req, res, next) => {
     }
     
     // Kullanıcıyı veritabanından kontrol et
-    const user = await User.findById(decodedToken.userId).select('-password');
+    const user = await User.findById(decodedToken._id).select('-password');
     if (!user) {
       return res.status(StatusCodes.UNAUTHORIZED).json({
         error: true,
@@ -57,17 +57,8 @@ module.exports = async (req, res, next) => {
         code: StatusCodes.UNAUTHORIZED
       });
     }
-    
-    // Token'ın veritabanındakiyle eşleşip eşleşmediğini kontrol et
-    if (user.accessToken !== token) {
-      return res.status(StatusCodes.UNAUTHORIZED).json({
-        error: true,
-        success: false,
-        message: "Token geçerliliğini yitirmiş",
-        code: StatusCodes.UNAUTHORIZED
-      });
-    }
-    
+   
+  
     // Hesap kilitli mi kontrol et
     if (user.isLocked) {
       return res.status(StatusCodes.LOCKED).json({
