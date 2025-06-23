@@ -1,2 +1,3 @@
 const helper = require("./helper");
-module.exports = { helper };
+const email = require("./email");
+module.exports = { helper, email };

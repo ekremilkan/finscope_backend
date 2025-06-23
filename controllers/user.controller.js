@@ -41,6 +41,27 @@ exports.login = async (req, res) => {
     });
   }
 };
+
+exports.verifyLogin = async (req, res) => {
+  try {
+    const data = await userService.user.verifyLogin(req); // Barrel'dan userService'i aldığınızı varsayıyorum
+    res.status(StatusCodes.OK).json({
+      ...baseResponse, // baseResponse'u import ettiğinizi varsayıyorum
+      data,
+      message: "Giriş başarılı",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
 exports.logout = async (req, res) => {
   try {
     const data = await userService.user.logout(req);

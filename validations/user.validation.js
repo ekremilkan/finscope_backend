@@ -1,4 +1,4 @@
-const Joi = require('joi');
+const Joi = require("joi");
 
 // Kullanıcı kayıt validation şeması
 const registerSchema = Joi.object({
@@ -9,12 +9,12 @@ const registerSchema = Joi.object({
     .pattern(/^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/)
     .required()
     .messages({
-      'string.base': 'İsim metin olmalıdır',
-      'string.empty': 'İsim boş olamaz',
-      'string.min': 'İsim en az 2 karakter olmalıdır',
-      'string.max': 'İsim en fazla 50 karakter olmalıdır',
-      'string.pattern.base': 'İsim sadece harf ve boşluk içerebilir',
-      'any.required': 'İsim zorunludur'
+      "string.base": "İsim metin olmalıdır",
+      "string.empty": "İsim boş olamaz",
+      "string.min": "İsim en az 2 karakter olmalıdır",
+      "string.max": "İsim en fazla 50 karakter olmalıdır",
+      "string.pattern.base": "İsim sadece harf ve boşluk içerebilir",
+      "any.required": "İsim zorunludur",
     }),
 
   email: Joi.string()
@@ -23,9 +23,9 @@ const registerSchema = Joi.object({
     .trim()
     .required()
     .messages({
-      'string.email': 'Geçerli bir e-posta adresi giriniz',
-      'string.empty': 'E-posta boş olamaz',
-      'any.required': 'E-posta zorunludur'
+      "string.email": "Geçerli bir e-posta adresi giriniz",
+      "string.empty": "E-posta boş olamaz",
+      "any.required": "E-posta zorunludur",
     }),
 
   password: Joi.string()
@@ -34,12 +34,13 @@ const registerSchema = Joi.object({
     .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
     .required()
     .messages({
-      'string.min': 'Şifre en az 8 karakter olmalıdır',
-      'string.max': 'Şifre en fazla 128 karakter olmalıdır',
-      'string.pattern.base': 'Şifre en az bir büyük harf, bir küçük harf, bir rakam ve bir özel karakter (@$!%*?&) içermelidir',
-      'string.empty': 'Şifre boş olamaz',
-      'any.required': 'Şifre zorunludur'
-    })
+      "string.min": "Şifre en az 8 karakter olmalıdır",
+      "string.max": "Şifre en fazla 128 karakter olmalıdır",
+      "string.pattern.base":
+        "Şifre en az bir büyük harf, bir küçük harf, bir rakam ve bir özel karakter (@$!%*?&) içermelidir",
+      "string.empty": "Şifre boş olamaz",
+      "any.required": "Şifre zorunludur",
+    }),
 });
 
 // Kullanıcı giriş validation şeması
@@ -50,31 +51,28 @@ const loginSchema = Joi.object({
     .trim()
     .required()
     .messages({
-      'string.email': 'Geçerli bir e-posta adresi giriniz',
-      'string.empty': 'E-posta boş olamaz',
-      'any.required': 'E-posta zorunludur'
+      "string.email": "Geçerli bir e-posta adresi giriniz",
+      "string.empty": "E-posta boş olamaz",
+      "any.required": "E-posta zorunludur",
     }),
 
-  password: Joi.string()
-    .min(1)
-    .required()
-    .messages({
-      'string.empty': 'Şifre boş olamaz',
-      'any.required': 'Şifre zorunludur'
-    })
+  password: Joi.string().min(1).required().messages({
+    "string.empty": "Şifre boş olamaz",
+    "any.required": "Şifre zorunludur",
+  }),
 });
 
 // Validation middleware
 const validateRegister = (req, res, next) => {
   const { error } = registerSchema.validate(req.body, { abortEarly: false });
   if (error) {
-    const errors = error.details.map(detail => detail.message);
+    const errors = error.details.map((detail) => detail.message);
     return res.status(400).json({
       success: false,
       error: true,
-      message: 'Validation hatası',
+      message: "Validation hatası",
       errors: errors,
-      code: 400
+      code: 400,
     });
   }
   next();
@@ -83,14 +81,40 @@ const validateRegister = (req, res, next) => {
 const validateLogin = (req, res, next) => {
   const { error } = loginSchema.validate(req.body, { abortEarly: false });
   if (error) {
-    const errors = error.details.map(detail => detail.message);
+    const errors = error.details.map((detail) => detail.message);
     return res.status(400).json({
       success: false,
       error: true,
-      message: 'Validation hatası',
+      message: "Validation hatası",
       errors: errors,
-      code: 400
+      code: 400,
     });
+  }
+  next();
+};
+
+const validateVerifyLogin = (req, res, next) => {
+  const schema = Joi.object({
+    email: Joi.string().email().required().messages({
+      "string.email": "Lütfen geçerli bir e-posta adresi girin.",
+      "any.required": "E-posta alanı zorunludur.",
+    }),
+    verificationCode: Joi.string()
+      .length(6)
+      .pattern(/^[0-9]+$/)
+      .required()
+      .messages({
+        "string.length": "Doğrulama kodu 6 haneli olmalıdır.",
+        "string.pattern.base": "Doğrulama kodu sadece rakamlardan oluşmalıdır.",
+        "any.required": "Doğrulama kodu zorunludur.",
+      }),
+  });
+
+  const { error } = schema.validate(req.body);
+  if (error) {
+    return res
+      .status(400)
+      .json({ success: false, message: error.details[0].message });
   }
   next();
 };
@@ -99,5 +123,6 @@ module.exports = {
   registerSchema,
   loginSchema,
   validateRegister,
-  validateLogin
-}; 
+  validateLogin,
+  validateVerifyLogin,
+};
