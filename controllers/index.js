@@ -1,2 +1,3 @@
 const userController = require("./user.controller");
-module.exports = { userController };
+const walletController = require("./wallet.controller");
+module.exports = { userController, walletController };

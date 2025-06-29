@@ -36,6 +36,12 @@ const userSchema = new mongoose.Schema(
           "Şifre en az bir büyük harf, bir küçük harf, bir rakam ve bir özel karakter içermelidir",
       },
     },
+    wallets: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Wallet", // Wallet modeline referans
+      },
+    ],
     verificationCode: {
       type: String,
       default: null,

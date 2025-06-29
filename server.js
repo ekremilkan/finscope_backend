@@ -61,6 +61,7 @@ app.get("/", (req, res) => res.send("API Çalışıyor..."));
 
 // DEĞİŞTİ - config.app.prefix olarak güncellendi
 app.use(`${config.app.prefix}/${ROUTER_PREFIX.USER}`, router.userRouter);
+app.use(`${config.app.prefix}/wallets`, router.walletRouter);
 
 // DEĞİŞTİ - config.db.uri ve config.app.port olarak güncellendi
 db.mongooseConnection.connectMongoDB().then(() => {
