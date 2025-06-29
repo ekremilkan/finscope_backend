@@ -8,7 +8,7 @@ const generalLimiter = rateLimit({
     error: true,
     success: false,
     message: "Çok fazla istek! 15 dakika sonra tekrar deneyin.",
-    code: 429
+    code: 429,
   },
   standardHeaders: true, // Rate limit bilgilerini header'da gönder
   legacyHeaders: false,
@@ -22,7 +22,7 @@ const authLimiter = rateLimit({
     error: true,
     success: false,
     message: "Çok fazla giriş denemesi! 15 dakika sonra tekrar deneyin.",
-    code: 429
+    code: 429,
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -38,7 +38,21 @@ const registerLimiter = rateLimit({
     error: true,
     success: false,
     message: "Çok fazla kayıt denemesi! 1 saat sonra tekrar deneyin.",
-    code: 429
+    code: 429,
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Şifre sıfırlama (forgot password) için limiter
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 dakika
+  max: 10, // IP başına 15 dakikada maksimum 10 istek
+  message: {
+    error: true,
+    success: false,
+    message: "Çok fazla şifre sıfırlama isteği! 15 dakika sonra tekrar deneyin.",
+    code: 429,
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -47,5 +61,6 @@ const registerLimiter = rateLimit({
 module.exports = {
   generalLimiter,
   authLimiter,
-  registerLimiter
-}; 
+  registerLimiter,
+  forgotPasswordLimiter,
+};

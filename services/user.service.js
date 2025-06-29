@@ -69,16 +69,12 @@ exports.login = async (req) => {
 
   // E-posta ile kodu gönder (hata olursa logla ama kullanıcıya yansıtma)
   try {
-    // utils/index.js'ten email servisini export etmelisiniz.
     await utils.email.sendVerificationCode(user.email, verificationCode);
   } catch (emailError) {
     console.error(
       `Verification email could not be sent to ${user.email}`,
       emailError
     );
-    // Bu durumda kullanıcıya hata dönmek yerine sadece loglayıp devam edebiliriz,
-    // çünkü kritik olan kodun DB'ye kaydedilmesidir.
-    // Ama isterseniz burada hata da fırlatabilirsiniz.
   }
 
   // Başarılı ama henüz giriş yapılmamış yanıtı dön
@@ -146,4 +142,77 @@ exports.logout = async (req) => {
     await user.save();
   }
   return { message: "Başarıyla çıkış yapıldı" };
+};
+
+// ----------------------------
+// Şifre Sıfırlama Fonksiyonları
+// ----------------------------
+
+exports.forgotPassword = async (req) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    const err = new Error("Bu e-posta adresine ait bir kullanıcı bulunamadı.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
+  const code = Math.floor(100000 + Math.random() * 900000).toString(); // 6 haneli
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 dakika
+
+  user.verificationCode = code;
+  user.verificationCodeExpiresAt = expiresAt;
+  await user.save();
+
+  try {
+    await utils.email.sendVerificationCode(user.email, code);
+  } catch (error) {
+    console.error("Kod gönderilemedi:", error);
+  }
+
+  return { message: "Şifre sıfırlama kodu e-posta adresinize gönderildi." };
+};
+
+exports.verifyResetCode = async (req) => {
+  const { email, code } = req.body;
+
+  const user = await User.findOne({ email });
+
+  if (
+    !user ||
+    user.verificationCode !== code ||
+    !user.verificationCodeExpiresAt ||
+    user.verificationCodeExpiresAt < new Date()
+  ) {
+    const err = new Error("Kod geçersiz veya süresi dolmuş.");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
+  return { message: "Kod doğrulandı." };
+};
+
+exports.resetPassword = async (req) => {
+  const { email, code, newPassword } = req.body;
+
+  const user = await User.findOne({ email });
+
+  if (
+    !user ||
+    user.verificationCode !== code ||
+    !user.verificationCodeExpiresAt ||
+    user.verificationCodeExpiresAt < new Date()
+  ) {
+    const err = new Error("Kod geçersiz veya süresi dolmuş.");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
+  user.password = newPassword;
+  user.verificationCode = null;
+  user.verificationCodeExpiresAt = null;
+  await user.save();
+
+  return { message: "Şifreniz başarıyla sıfırlandı." };
 };

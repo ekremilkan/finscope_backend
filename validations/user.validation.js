@@ -119,10 +119,104 @@ const validateVerifyLogin = (req, res, next) => {
   next();
 };
 
+const validateForgotPassword = (req, res, next) => {
+  const schema = Joi.object({
+    email: Joi.string()
+      .email({ tlds: { allow: false } })
+      .required()
+      .messages({
+        "string.email": "Geçerli bir e-posta adresi giriniz",
+        "any.required": "E-posta zorunludur",
+      }),
+  });
+
+  const { error } = schema.validate(req.body);
+  if (error) {
+    return res
+      .status(400)
+      .json({ success: false, message: error.details[0].message });
+  }
+  next();
+};
+
+const validateVerifyResetCode = (req, res, next) => {
+  const schema = Joi.object({
+    email: Joi.string()
+      .email()
+      .required()
+      .messages({
+        "string.email": "Lütfen geçerli bir e-posta adresi girin.",
+        "any.required": "E-posta alanı zorunludur.",
+      }),
+    code: Joi.string()
+      .length(6)
+      .pattern(/^[0-9]+$/)
+      .required()
+      .messages({
+        "string.length": "Kod 6 haneli olmalıdır.",
+        "string.pattern.base": "Kod sadece rakamlardan oluşmalıdır.",
+        "any.required": "Kod zorunludur.",
+      }),
+  });
+
+  const { error } = schema.validate(req.body);
+  if (error) {
+    return res
+      .status(400)
+      .json({ success: false, message: error.details[0].message });
+  }
+  next();
+};
+
+const validateResetPassword = (req, res, next) => {
+  const schema = Joi.object({
+    email: Joi.string()
+      .email()
+      .required()
+      .messages({
+        "string.email": "Lütfen geçerli bir e-posta adresi girin.",
+        "any.required": "E-posta alanı zorunludur.",
+      }),
+    code: Joi.string()
+      .length(6)
+      .pattern(/^[0-9]+$/)
+      .required()
+      .messages({
+        "string.length": "Kod 6 haneli olmalıdır.",
+        "string.pattern.base": "Kod sadece rakamlardan oluşmalıdır.",
+        "any.required": "Kod zorunludur.",
+      }),
+    newPassword: Joi.string()
+      .min(8)
+      .max(128)
+      .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/)
+      .required()
+      .messages({
+        "string.min": "Şifre en az 8 karakter olmalıdır",
+        "string.max": "Şifre en fazla 128 karakter olmalıdır",
+        "string.pattern.base":
+          "Şifre en az bir büyük harf, bir küçük harf, bir rakam ve bir özel karakter içermelidir",
+        "any.required": "Yeni şifre zorunludur.",
+      }),
+  });
+
+  const { error } = schema.validate(req.body);
+  if (error) {
+    return res
+      .status(400)
+      .json({ success: false, message: error.details[0].message });
+  }
+  next();
+};
+
+
 module.exports = {
   registerSchema,
   loginSchema,
   validateRegister,
   validateLogin,
   validateVerifyLogin,
+  validateForgotPassword,
+  validateVerifyResetCode,
+  validateResetPassword,
 };

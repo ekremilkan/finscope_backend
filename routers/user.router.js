@@ -34,4 +34,24 @@ router.get(
 
 router.post("/logout/:userId", controller.userController.logout);
 
+// Şifre sıfırlama 
+router.post(
+  "/forgot-password",
+  middlewares.rateLimiter.forgotPasswordLimiter,
+  validation.userValidation.validateForgotPassword,
+  controller.userController.forgotPassword
+);
+
+router.post(
+  "/verify-reset-code",
+  validation.userValidation.validateVerifyResetCode,
+  controller.userController.verifyResetCode
+);
+
+router.post(
+  "/reset-password",
+  validation.userValidation.validateResetPassword,
+  controller.userController.resetPassword
+);
+
 module.exports = { user: router };
