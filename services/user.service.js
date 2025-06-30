@@ -83,6 +83,45 @@ exports.login = async (req) => {
   // --- DEĞİŞEN KISIM SONU ---
 };
 
+exports.resendVerificationCode = async (req) => {
+  const { email } = req.body;
+
+  if (!email) {
+    const err = new Error("Email is required");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    const err = new Error("User not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Yeni 6 haneli kod oluştur
+  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // Kodun geçerlilik süresini 10 dakika olarak ayarla
+  user.verificationCode = verificationCode;
+  user.verificationCodeExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  await user.save();
+
+  try {
+    await utils.email.sendVerificationCode(user.email, verificationCode);
+  } catch (emailError) {
+    console.error(
+      `Verification email could not be sent to ${user.email}`,
+      emailError
+    );
+  }
+
+  return {
+    message: "Verification code resent successfully.",
+  };
+};
+
 exports.verifyLogin = async (req) => {
   const { email, verificationCode } = req.body;
 

@@ -34,7 +34,7 @@ router.get(
 
 router.post("/logout/:userId", controller.userController.logout);
 
-// Şifre sıfırlama 
+// Şifre sıfırlama
 router.post(
   "/forgot-password",
   middlewares.rateLimiter.forgotPasswordLimiter,
@@ -52,6 +52,11 @@ router.post(
   "/reset-password",
   validation.userValidation.validateResetPassword,
   controller.userController.resetPassword
+);
+
+router.post(
+  "/resend-verification-code",
+  controller.userController.resendVerificationCode
 );
 
 module.exports = { user: router };
