@@ -100,7 +100,9 @@ exports.resendVerificationCode = async (req) => {
   }
 
   // Yeni 6 haneli kod oluştur
-  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const verificationCode = Math.floor(
+    100000 + Math.random() * 900000
+  ).toString();
 
   // Kodun geçerlilik süresini 10 dakika olarak ayarla
   user.verificationCode = verificationCode;
@@ -210,7 +212,10 @@ exports.forgotPassword = async (req) => {
     console.error("Kod gönderilemedi:", error);
   }
 
-  return { message: "Şifre sıfırlama kodu e-posta adresinize gönderildi." };
+  return {
+    message: "Şifre sıfırlama kodu e-posta adresinize gönderildi.",
+    expiresAt: expiresAt.toISOString(),
+  };
 };
 
 exports.verifyResetCode = async (req) => {
