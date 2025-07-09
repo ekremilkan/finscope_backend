@@ -59,4 +59,12 @@ router.post(
   controller.userController.resendVerificationCode
 );
 
+// Refresh token endpoint'i
+router.post(
+  "/refresh-token",
+  middlewares.rateLimiter.authLimiter,
+  validation.userValidation.validateRefreshToken,
+  controller.userController.refreshToken
+);
+
 module.exports = { user: router };

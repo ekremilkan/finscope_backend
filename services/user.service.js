@@ -260,3 +260,71 @@ exports.resetPassword = async (req) => {
 
   return { message: "Şifreniz başarıyla sıfırlandı." };
 };
+
+/**
+ * Refresh token ile yeni access token üretme
+ */
+exports.refreshAccessToken = async (req) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    const err = new Error("Refresh token gerekli.");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
+  try {
+    // Refresh token'ı doğrula
+    const decodedToken = utils.helper.verifyRefreshToken(refreshToken);
+    
+    // Kullanıcıyı database'den bul
+    const user = await User.findById(decodedToken._id);
+    if (!user) {
+      const err = new Error("Kullanıcı bulunamadı.");
+      err.statusCode = StatusCodes.NOT_FOUND;
+      throw err;
+    }
+
+    // Database'deki refresh token ile gelen token'ı karşılaştır
+    if (user.refreshToken !== refreshToken) {
+      const err = new Error("Geçersiz refresh token.");
+      err.statusCode = StatusCodes.UNAUTHORIZED;
+      throw err;
+    }
+
+    // Hesap kilitli mi kontrol et
+    if (user.isLocked) {
+      const err = new Error("Hesap geçici olarak kilitlenmiştir.");
+      err.statusCode = StatusCodes.LOCKED;
+      throw err;
+    }
+
+    // Yeni access token oluştur
+    const newAccessToken = user.generateAccessToken();
+    
+    // Yeni refresh token oluştur (refresh token rotation için)
+    const newRefreshToken = utils.helper.createRefreshToken(user);
+    
+    // Yeni refresh token'ı database'e kaydet
+    user.refreshToken = newRefreshToken;
+    user.tokenCreatedAt = new Date();
+    await user.save();
+
+    const userResponse = user.toJSON();
+
+    return { 
+      user: userResponse, 
+      token: newAccessToken, 
+      refreshToken: newRefreshToken,
+      message: "Token başarıyla yenilendi" 
+    };
+
+  } catch (error) {
+    if (error.statusCode) {
+      throw error;
+    }
+    const err = new Error("Token yenileme sırasında hata oluştu.");
+    err.statusCode = StatusCodes.UNAUTHORIZED;
+    throw err;
+  }
+};

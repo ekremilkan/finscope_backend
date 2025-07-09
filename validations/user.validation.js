@@ -209,6 +209,32 @@ const validateResetPassword = (req, res, next) => {
   next();
 };
 
+/**
+ * Refresh token validation
+ */
+const validateRefreshToken = (req, res, next) => {
+  const schema = Joi.object({
+    refreshToken: Joi.string()
+      .required()
+      .messages({
+        "string.empty": "Refresh token boş olamaz",
+        "any.required": "Refresh token zorunludur",
+      }),
+  });
+
+  const { error } = schema.validate(req.body);
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      error: true,
+      message: "Validation hatası",
+      errors: error.details.map((detail) => detail.message),
+      code: 400,
+    });
+  }
+  next();
+};
+
 
 module.exports = {
   registerSchema,
@@ -219,4 +245,5 @@ module.exports = {
   validateForgotPassword,
   validateVerifyResetCode,
   validateResetPassword,
+  validateRefreshToken,
 };

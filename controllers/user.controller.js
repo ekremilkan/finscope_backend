@@ -131,6 +131,29 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
+/**
+ * Refresh token ile yeni access token üretme
+ */
+exports.refreshToken = async (req, res) => {
+  try {
+    const data = await userService.user.refreshAccessToken(req);
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: data.message,
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
 exports.verifyResetCode = async (req, res) => {
   try {
     const data = await userService.user.verifyResetCode(req);

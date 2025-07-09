@@ -30,3 +30,16 @@ exports.createRefreshToken = (user) => {
   );
   return refreshToken;
 };
+
+/**
+ * Refresh token doğrulama fonksiyonu
+ */
+exports.verifyRefreshToken = (refreshToken) => {
+  try {
+    const decodedToken = jsonwebtoken.verify(refreshToken, process.env.REFRESH_SECRETKEY);
+    return decodedToken;
+  } catch (error) {
+    console.log("Refresh token doğrulama hatası:", error.message);
+    throw new Error("Refresh token geçersiz veya süresi dolmuş");
+  }
+};
