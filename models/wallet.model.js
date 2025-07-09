@@ -10,7 +10,7 @@ const walletSchema = new mongoose.Schema(
     network: {
       type: String,
       required: true,
-      enum: ["Ethereum", "Solana", "Tron", "BNBChain", "SUI", "Base"], // Desteklenen ağlar [cite: 2]
+      enum: ["Ethereum", "Solana", "Tron", "BNBChain", "SUI", "Base"], // Desteklenen ağlar
     },
     address: {
       type: String,
@@ -20,13 +20,49 @@ const walletSchema = new mongoose.Schema(
     },
     isAirdropAddress: {
       type: Boolean,
-      default: false, // Bu cüzdanın airdrop için işaretlenip işaretlenmediği [cite: 3]
+      default: false, // Bu cüzdanın airdrop için işaretlenip işaretlenmediği
     },
+    // YENİ: Bakiye bilgileri (SADECE BLOCKCHAIN'DEN)
+    balances: [{
+      currency: {
+        type: String,
+        required: true,
+        trim: true,
+        uppercase: true // ETH, BTC, SOL vs.
+      },
+      amount: {
+        type: String, // Precision için string
+        required: true,
+        default: "0"
+      },
+      usdValue: {
+        type: String, // USD karşılığı
+        default: "0"
+      },
+      lastUpdated: {
+        type: Date,
+        default: Date.now
+      }
+    }],
+    // Son blockchain sorgusu tarihi
+    lastBalanceCheck: {
+      type: Date,
+      default: Date.now
+    },
+    // Toplam portföy değeri (USD) - SADECE BLOCKCHAIN'DEN HESAPLANAN
+    totalUsdValue: {
+      type: String,
+      default: "0"
+    }
   },
   {
     timestamps: true,
   }
 );
+
+// Bakiye arama için index
+walletSchema.index({ user: 1, network: 1 });
+walletSchema.index({ "balances.currency": 1 });
 
 const Wallet = mongoose.model("Wallet", walletSchema);
 module.exports = Wallet;

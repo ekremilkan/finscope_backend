@@ -1,2 +1,4 @@
 const user = require("./user.service");
-module.exports = { user };
+const wallet = require("./wallet.service");
+
+module.exports = { user, wallet };

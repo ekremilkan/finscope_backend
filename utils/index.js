@@ -1,3 +1,6 @@
-const helper = require("./helper");
 const email = require("./email");
-module.exports = { helper, email };
+const helper = require("./helper");
+const addressValidator = require("./addressValidator");
+const balanceFetcher = require("./balanceFetcher");
+
+module.exports = { email, helper, addressValidator, balanceFetcher };
