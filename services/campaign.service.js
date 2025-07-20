@@ -17,7 +17,7 @@ exports.create = async (req) => {
     videoLink
   } = req.body;
   
-  const customerId = req.user._id;
+  const createdUserId = req.user._id;
 
   const campaign = new Campaign({ 
     title, 
@@ -32,7 +32,7 @@ exports.create = async (req) => {
     tags,
     images: images || [],
     videoLink: videoLink || null,
-    customerId 
+    createdUserId 
   });
   
   await campaign.save();
@@ -41,7 +41,7 @@ exports.create = async (req) => {
 
 exports.getAll = async () => {
   const campaigns = await Campaign.find()
-    .populate("customerId", "name email")
+    .populate("createdUserId", "name email")
     .sort({ createdAt: -1 });
   return campaigns;
 };
@@ -49,7 +49,7 @@ exports.getAll = async () => {
 exports.getById = async (req) => {
   const { id } = req.params;
   const campaign = await Campaign.findById(id)
-    .populate("customerId", "name email");
+    .populate("createdUserId", "name email");
 
   if (!campaign) {
     const err = new Error("Kampanya bulunamadı.");
@@ -62,7 +62,7 @@ exports.getById = async (req) => {
 
 exports.update = async (req) => {
   const { id } = req.params;
-  const customerId = req.user._id;
+  const createdUserId = req.user._id;
   const userRole = req.user.role;
   
   // Admin ise tüm kampanyaları güncelleyebilir, değilse sadece kendi kampanyasını
@@ -70,7 +70,7 @@ exports.update = async (req) => {
   if (userRole === 'admin') {
     campaign = await Campaign.findById(id);
   } else {
-    campaign = await Campaign.findOne({ _id: id, customerId });
+    campaign = await Campaign.findOne({ _id: id, createdUserId });
   }
   
   if (!campaign) {
@@ -83,22 +83,22 @@ exports.update = async (req) => {
     id, 
     req.body, 
     { new: true, runValidators: true }
-  ).populate("customerId", "name email");
+  ).populate("createdUserId", "name email");
   
   return updatedCampaign;
 };
 
 exports.getByCustomer = async (req) => {
-  const customerId = req.user._id;
-  const campaigns = await Campaign.find({ customerId })
-    .populate("customerId", "name email")
+  const createdUserId = req.user._id;
+  const campaigns = await Campaign.find({ createdUserId })
+    .populate("createdUserId", "name email")
     .sort({ createdAt: -1 });
   return campaigns;
 };
 
 exports.remove = async (req) => {
   const { id } = req.params;
-  const customerId = req.user._id;
+  const createdUserId = req.user._id;
   const userRole = req.user.role;
 
   // Admin ise tüm kampanyaları silebilir, değilse sadece kendi kampanyasını
@@ -106,7 +106,7 @@ exports.remove = async (req) => {
   if (userRole === 'admin') {
     campaign = await Campaign.findById(id);
   } else {
-    campaign = await Campaign.findOne({ _id: id, customerId });
+    campaign = await Campaign.findOne({ _id: id, createdUserId });
   }
 
   if (!campaign) {

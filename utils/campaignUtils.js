@@ -39,7 +39,7 @@ exports.getActiveCampaigns = async () => {
       isActive: true,
       startDate: { $lte: now },
       endDate: { $gt: now }
-    }).populate('customerId', 'name email');
+    }).populate('createdUserId', 'name email');
   } catch (error) {
     console.error('❌ Aktif kampanya getirme hatası:', error.message);
     throw error;
@@ -57,7 +57,7 @@ exports.getUpcomingCampaigns = async () => {
       status: 'upcoming',
       isActive: true,
       startDate: { $gt: now }
-    }).populate('customerId', 'name email');
+    }).populate('createdUserId', 'name email');
   } catch (error) {
     console.error('❌ Yaklaşan kampanya getirme hatası:', error.message);
     throw error;

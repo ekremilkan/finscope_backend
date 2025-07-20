@@ -5,7 +5,7 @@ const baseResponse = require("../dto/baseresponse.dto");
 
 exports.create = async (req, res) => {
   try {
-    const data = await questionService.create({ ...req.body, customerId: req.user._id });
+    const data = await questionService.create({ ...req.body, createdUserId: req.user._id });
     res.status(StatusCodes.CREATED).json({
       ...baseResponse,
       data,

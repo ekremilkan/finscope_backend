@@ -36,7 +36,7 @@ async function createTestCampaign() {
       ],
       videoLink: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
       tags: ['blockchain', 'crypto', 'education'],
-      customerId: testUser._id
+      createdUserId: testUser._id
     });
 
     await testCampaign.save();
@@ -76,7 +76,7 @@ async function testMediaFields() {
         reward: 100,
         startDate: new Date('2024-12-20'),
         endDate: new Date('2024-12-25'),
-        customerId: testCampaign.customerId,
+        createdUserId: testCampaign.createdUserId,
         images: Array(15).fill('https://example.com/image.jpg') // 15 resim (limit 10)
       });
       await invalidCampaign.save();
@@ -93,7 +93,7 @@ async function testMediaFields() {
         reward: 100,
         startDate: new Date('2024-12-20'),
         endDate: new Date('2024-12-25'),
-        customerId: testCampaign.customerId,
+        createdUserId: testCampaign.createdUserId,
         videoLink: 'invalid-video-link'
       });
       await invalidVideoCampaign.save();

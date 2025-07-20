@@ -2,7 +2,7 @@ const Question = require("../models/questions.model");
 const { StatusCodes } = require("http-status-codes");
 
 exports.create = async (req) => {
-  const { questionText, options, campaignId, customerId, order } = req;
+  const { questionText, options, campaignId, createdUserId, order } = req;
 
   if (!Array.isArray(options) || options.length !== 4) {
     const err = new Error("Tam olarak 4 seçenek olmalı.");
@@ -21,7 +21,7 @@ exports.create = async (req) => {
     questionText,
     options,
     campaignId,
-    customerId,
+    createdUserId,
     order: order || 0,
   });
 
@@ -31,7 +31,7 @@ exports.create = async (req) => {
 
 exports.getAll = async () => {
   return await Question.find()
-    .populate("customerId", "name email")
+    .populate("createdUserId", "name email")
     .populate("campaignId", "title")
     .sort({ order: 1, createdAt: -1 });
 };
@@ -45,20 +45,20 @@ exports.getByCampaign = async (req) => {
   }
 
   return await Question.find({ campaignId })
-    .populate("customerId", "name email")
+    .populate("createdUserId", "name email")
     .sort({ order: 1, createdAt: -1 });
 };
 
 exports.getByCustomer = async (req) => {
-  const customerId = req.user._id;
-  return await Question.find({ customerId })
+  const createdUserId = req.user._id;
+  return await Question.find({ createdUserId })
     .populate("campaignId", "title")
     .sort({ order: 1, createdAt: -1 });
 };
 
 exports.update = async (req) => {
   const { id } = req.params;
-  const customerId = req.user._id;
+  const createdUserId = req.user._id;
   const userRole = req.user.role;
   const { questionText, options, order } = req.body;
 
@@ -67,7 +67,7 @@ exports.update = async (req) => {
   if (userRole === 'admin') {
     question = await Question.findById(id);
   } else {
-    question = await Question.findOne({ _id: id, customerId });
+    question = await Question.findOne({ _id: id, createdUserId });
   }
 
   if (!question) {
@@ -96,14 +96,14 @@ exports.update = async (req) => {
     id,
     { questionText, options, order },
     { new: true, runValidators: true }
-  ).populate("customerId", "name email").populate("campaignId", "title");
+  ).populate("createdUserId", "name email").populate("campaignId", "title");
 
   return updatedQuestion;
 };
 
 exports.remove = async (req) => {
   const { id } = req.params;
-  const customerId = req.user._id;
+  const createdUserId = req.user._id;
   const userRole = req.user.role;
 
   // Admin ise tüm soruları silebilir, değilse sadece kendi sorusunu
@@ -111,7 +111,7 @@ exports.remove = async (req) => {
   if (userRole === 'admin') {
     question = await Question.findById(id);
   } else {
-    question = await Question.findOne({ _id: id, customerId });
+    question = await Question.findOne({ _id: id, createdUserId });
   }
 
   if (!question) {
