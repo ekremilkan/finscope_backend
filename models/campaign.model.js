@@ -44,11 +44,34 @@ const campaignSchema = new mongoose.Schema({
     default: 5,
     min: 1,
   },
+  images: {
+    type: [String], // Resim URL'leri dizisi
+    default: [],
+    validate: {
+      validator: function(v) {
+        return v.length <= 10; // Maksimum 10 resim
+      },
+      message: 'En fazla 10 resim eklenebilir'
+    }
+  },
+  videoLink: {
+    type: String,
+    default: null,
+    validate: {
+      validator: function(v) {
+        if (!v) return true; // Boş olabilir
+        // YouTube, Vimeo, veya diğer video platformları için basit URL kontrolü
+        const urlPattern = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|facebook\.com|instagram\.com)\/.+/;
+        return urlPattern.test(v);
+      },
+      message: 'Geçerli bir video linki giriniz (YouTube, Vimeo, vb.)'
+    }
+  },
   tags: {
     type: [String],
     default: [],
   },
-  customerId: {
+  createdUserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User', // Hangi kullanıcı oluşturdu
     required: true,

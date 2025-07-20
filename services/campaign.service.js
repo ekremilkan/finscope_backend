@@ -12,7 +12,9 @@ exports.create = async (req) => {
     startDate, 
     endDate, 
     questions, 
-    tags 
+    tags,
+    images,
+    videoLink
   } = req.body;
   
   const customerId = req.user._id;
@@ -28,6 +30,8 @@ exports.create = async (req) => {
     endDate, 
     questions, 
     tags,
+    images: images || [],
+    videoLink: videoLink || null,
     customerId 
   });
   

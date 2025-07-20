@@ -64,6 +64,22 @@ const createCampaignSchema = Joi.object({
       'number.base': 'Soru sayısı sayı olmalıdır',
       'number.min': 'Soru sayısı en az 1 olmalıdır'
     }),
+  images: Joi.array()
+    .items(Joi.string().uri())
+    .max(10)
+    .default([])
+    .messages({
+      'array.base': 'Resimler dizi formatında olmalıdır',
+      'array.max': 'En fazla 10 resim eklenebilir',
+      'string.uri': 'Geçerli resim URL\'leri giriniz'
+    }),
+  videoLink: Joi.string()
+    .uri()
+    .allow(null, '')
+    .optional()
+    .messages({
+      'string.uri': 'Geçerli bir video linki giriniz'
+    }),
   tags: Joi.array()
     .items(Joi.string())
     .default([])
@@ -121,6 +137,21 @@ const updateCampaignSchema = Joi.object({
     .messages({
       'number.base': 'Soru sayısı sayı olmalıdır',
       'number.min': 'Soru sayısı en az 1 olmalıdır'
+    }),
+  images: Joi.array()
+    .items(Joi.string().uri())
+    .max(10)
+    .messages({
+      'array.base': 'Resimler dizi formatında olmalıdır',
+      'array.max': 'En fazla 10 resim eklenebilir',
+      'string.uri': 'Geçerli resim URL\'leri giriniz'
+    }),
+  videoLink: Joi.string()
+    .uri()
+    .allow(null, '')
+    .optional()
+    .messages({
+      'string.uri': 'Geçerli bir video linki giriniz'
     }),
   tags: Joi.array()
     .items(Joi.string())

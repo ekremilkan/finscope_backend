@@ -31,7 +31,7 @@ const questionSchema = new mongoose.Schema({
     ref: 'Campaign', // Hangi kampanyaya ait
     required: true,
   },
-  customerId: {
+  createdUserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User', // Hangi kullanıcı oluşturdu
     required: true,
