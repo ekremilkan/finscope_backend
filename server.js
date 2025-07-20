@@ -4,6 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const mongoSanitize = require("express-mongo-sanitize");
+const path = require("path");
 const config = require("./configs/index");
 const db = require("./db/index");
 const middlewares = require("./middlewares/index");
@@ -44,6 +45,9 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" })); // JSON payload limit
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+// Static dosya servisi (uploads klasörü için)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 app.get(`${config.app.prefix}/health`, (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: Date.now() });
 });
@@ -68,6 +72,7 @@ app.use(`${config.app.prefix}/${ROUTER_PREFIX.USER}`, router.userRouter);
 app.use(`${config.app.prefix}/wallets`, router.walletRouter);
 app.use(`${config.app.prefix}/campaigns`, router.campaignRouter);
 app.use(`${config.app.prefix}/questions`, router.questionRouter);
+app.use(`${config.app.prefix}/upload`, router.uploadRouter);
 
 // DEĞİŞTİ - config.db.uri ve config.app.port olarak güncellendi
 db.mongooseConnection.connectMongoDB().then(() => {
@@ -79,5 +84,6 @@ db.mongooseConnection.connectMongoDB().then(() => {
     console.log(`🚫 NoSQL Injection koruması: Aktif`);
     console.log(`🛡️  Helmet güvenlik headers: Aktif`);
     console.log(`📊 Kampanya ve Sorular API'leri aktif`);
+    console.log(`📁 File upload servisi aktif`);
   });
 });
