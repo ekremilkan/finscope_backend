@@ -41,6 +41,13 @@ const registerSchema = Joi.object({
       "string.empty": "Şifre boş olamaz",
       "any.required": "Şifre zorunludur",
     }),
+
+  role: Joi.string()
+    .valid('customer', 'user', 'admin')
+    .default('user')
+    .messages({
+      "any.only": "Geçerli bir rol seçiniz (customer, user, admin)",
+    }),
 });
 
 // Kullanıcı giriş validation şeması
@@ -62,6 +69,37 @@ const loginSchema = Joi.object({
   }),
 });
 
+// Kullanıcı güncelleme validation şeması
+const updateUserSchema = Joi.object({
+  name: Joi.string()
+    .min(2)
+    .max(50)
+    .trim()
+    .pattern(/^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/)
+    .messages({
+      "string.base": "İsim metin olmalıdır",
+      "string.empty": "İsim boş olamaz",
+      "string.min": "İsim en az 2 karakter olmalıdır",
+      "string.max": "İsim en fazla 50 karakter olmalıdır",
+      "string.pattern.base": "İsim sadece harf ve boşluk içerebilir",
+    }),
+
+  email: Joi.string()
+    .email({ tlds: { allow: false } })
+    .lowercase()
+    .trim()
+    .messages({
+      "string.email": "Geçerli bir e-posta adresi giriniz",
+      "string.empty": "E-posta boş olamaz",
+    }),
+
+  role: Joi.string()
+    .valid('customer', 'user', 'admin')
+    .messages({
+      "any.only": "Geçerli bir rol seçiniz (customer, user, admin)",
+    }),
+});
+
 // Validation middleware
 const validateRegister = (req, res, next) => {
   const { error } = registerSchema.validate(req.body, { abortEarly: false });
@@ -80,6 +118,21 @@ const validateRegister = (req, res, next) => {
 
 const validateLogin = (req, res, next) => {
   const { error } = loginSchema.validate(req.body, { abortEarly: false });
+  if (error) {
+    const errors = error.details.map((detail) => detail.message);
+    return res.status(400).json({
+      success: false,
+      error: true,
+      message: "Validation hatası",
+      errors: errors,
+      code: 400,
+    });
+  }
+  next();
+};
+
+const validateUpdateUser = (req, res, next) => {
+  const { error } = updateUserSchema.validate(req.body, { abortEarly: false });
   if (error) {
     const errors = error.details.map((detail) => detail.message);
     return res.status(400).json({
@@ -239,8 +292,10 @@ const validateRefreshToken = (req, res, next) => {
 module.exports = {
   registerSchema,
   loginSchema,
+  updateUserSchema,
   validateRegister,
   validateLogin,
+  validateUpdateUser,
   validateVerifyLogin,
   validateForgotPassword,
   validateVerifyResetCode,

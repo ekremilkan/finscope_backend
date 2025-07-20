@@ -31,10 +31,29 @@ const questionSchema = new mongoose.Schema({
     ref: 'Campaign', // Hangi kampanyaya ait
     required: true,
   },
+  customerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User', // Hangi kullanıcı oluşturdu
+    required: true,
+  },
+  order: {
+    type: Number,
+    default: 0, // Soru sırası
+  },
   createdAt: {
     type: Date,
     default: Date.now,
   },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  }
+});
+
+// updatedAt alanını güncelle
+questionSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
 });
 
 module.exports = mongoose.model('Question', questionSchema);

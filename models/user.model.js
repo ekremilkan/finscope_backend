@@ -36,6 +36,12 @@ const userSchema = new mongoose.Schema(
           "Şifre en az bir büyük harf, bir küçük harf, bir rakam ve bir özel karakter içermelidir",
       },
     },
+    role: {
+      type: String,
+      enum: ['customer', 'user', 'admin'],
+      default: 'user',
+      required: true,
+    },
     wallets: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -107,6 +113,7 @@ userSchema.methods.generateAccessToken = function () {
       _id: this._id,
       email: this.email,
       name: this.name,
+      role: this.role, // Role bilgisini token'a ekle
     },
     config.jwt.secret, // Config'den güvenli şekilde al
     { expiresIn: config.jwt.expiresIn }
@@ -128,6 +135,23 @@ userSchema.methods.clearAccessToken = function () {
 // Password karşılaştırma method'u
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Role kontrol method'ları
+userSchema.methods.isAdmin = function () {
+  return this.role === 'admin';
+};
+
+userSchema.methods.isCustomer = function () {
+  return this.role === 'customer';
+};
+
+userSchema.methods.isUser = function () {
+  return this.role === 'user';
+};
+
+userSchema.methods.canCreateCampaign = function () {
+  return this.role === 'admin' || this.role === 'customer';
 };
 
 // Hesap kilitleme kontrolü

@@ -1,6 +1,6 @@
 // controllers/question.controller.js
 const { StatusCodes } = require("http-status-codes");
-const questionService = require("../services/question.service");
+const questionService = require("../services/questions.service");
 const baseResponse = require("../dto/baseresponse.dto");
 
 exports.create = async (req, res) => {
@@ -70,6 +70,26 @@ exports.getByCustomer = async (req, res) => {
       ...baseResponse,
       data,
       message: "Müşteriye ait sorular getirildi",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
+exports.update = async (req, res) => {
+  try {
+    const data = await questionService.update(req);
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Soru başarıyla güncellendi",
       code: StatusCodes.OK,
     });
   } catch (error) {

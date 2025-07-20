@@ -5,10 +5,11 @@ const middlewares = require("../middlewares/index");
 
 const router = express.Router();
 
-// Soru oluşturma (sadece giriş yapmış müşteri)
+// Soru oluşturma (sadece admin ve customer)
 router.post(
   "/create",
-  middlewares.authMiddleware, // Token kontrolü
+  middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdminOrCustomer,
   validation.questionValidation.validateCreateQuestion,
   controller.questionController.create
 );
@@ -17,6 +18,7 @@ router.post(
 router.get(
   "/all",
   middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdmin,
   controller.questionController.getAll
 );
 
@@ -34,10 +36,20 @@ router.get(
   controller.questionController.getByCustomer
 );
 
-// Soru silme (müşteri kendine ait soruyu silebilir)
+// Soru güncelleme (admin ve customer - service'de detay kontrol)
+router.put(
+  "/:id",
+  middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdminOrCustomer,
+  validation.questionValidation.validateUpdateQuestion,
+  controller.questionController.update
+);
+
+// Soru silme (admin ve customer - service'de detay kontrol)
 router.delete(
   "/:id",
   middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdminOrCustomer,
   controller.questionController.remove
 );
 

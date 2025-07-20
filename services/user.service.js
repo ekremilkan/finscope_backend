@@ -4,7 +4,7 @@ const bcrypt = require("bcryptjs");
 const { StatusCodes } = require("http-status-codes");
 
 exports.register = async (req) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, role } = req.body;
 
   // E-posta kontrolü
   const existingUser = await User.findOne({ email });
@@ -14,8 +14,8 @@ exports.register = async (req) => {
     throw err;
   }
 
-  // Kullanıcı oluştur
-  const user = new User({ name, email, password });
+  // Kullanıcı oluştur (role varsa kullan, yoksa default 'user')
+  const user = new User({ name, email, password, role: role || 'user' });
   await user.save();
 
   // Token oluştur

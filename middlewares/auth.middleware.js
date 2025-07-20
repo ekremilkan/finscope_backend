@@ -58,7 +58,6 @@ module.exports = async (req, res, next) => {
       });
     }
    
-  
     // Hesap kilitli mi kontrol et
     if (user.isLocked) {
       return res.status(StatusCodes.LOCKED).json({
@@ -68,6 +67,9 @@ module.exports = async (req, res, next) => {
         code: StatusCodes.LOCKED
       });
     }
+    
+    // Role bilgisini token'dan al ve kullanıcı bilgisine ekle
+    user.role = decodedToken.role || user.role;
     
     // Kullanıcı bilgilerini request'e ekle
     req.user = user;

@@ -4,7 +4,7 @@ const baseResponse = require("../dto/baseresponse.dto");
 
 exports.create = async (req, res) => {
   try {
-    const data = await campaignService.create({ ...req.body, customerId: req.user._id });
+    const data = await campaignService.create(req);
     res.status(StatusCodes.CREATED).json({
       ...baseResponse,
       data,

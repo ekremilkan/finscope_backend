@@ -1,0 +1,104 @@
+const mongoose = require('mongoose');
+
+const campaignSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    maxlength: 100,
+  },
+  description: {
+    type: String,
+    required: true,
+    maxlength: 500,
+  },
+  reward: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+  maxParticipants: {
+    type: Number,
+    default: 100,
+    min: 1,
+  },
+  category: {
+    type: String,
+    default: 'education',
+    enum: ['education', 'technology', 'health', 'finance', 'sports', 'entertainment', 'other'],
+  },
+  difficulty: {
+    type: String,
+    enum: ['Beginner', 'Intermediate', 'Advanced'],
+    default: 'Beginner',
+  },
+  startDate: {
+    type: Date,
+    required: true,
+  },
+  endDate: {
+    type: Date,
+    required: true,
+  },
+  questions: {
+    type: Number,
+    default: 5,
+    min: 1,
+  },
+  tags: {
+    type: [String],
+    default: [],
+  },
+  customerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User', // Hangi kullanıcı oluşturdu
+    required: true,
+  },
+  status: {
+    type: String,
+    enum: ['active', 'inactive', 'expired', 'upcoming'],
+    default: 'upcoming',
+  },
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  }
+});
+
+// Bitiş tarihi kontrolü ve status güncelleme
+campaignSchema.pre('save', function(next) {
+  const now = new Date();
+  
+  // updatedAt alanını güncelle
+  this.updatedAt = now;
+  
+  // Status kontrolü
+  if (this.endDate < now) {
+    this.status = 'expired';
+    this.isActive = false;
+  } else if (this.startDate > now) {
+    this.status = 'upcoming';
+  } else {
+    this.status = 'active';
+  }
+  
+  next();
+});
+
+// Tarih validasyonu
+campaignSchema.pre('validate', function(next) {
+  if (this.startDate >= this.endDate) {
+    const err = new Error('Başlangıç tarihi bitiş tarihinden önce olmalıdır.');
+    return next(err);
+  }
+  next();
+});
+
+module.exports = mongoose.model('Campaign', campaignSchema);

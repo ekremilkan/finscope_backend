@@ -63,9 +63,11 @@ app.use(middlewares.rateLimiter.generalLimiter);
 
 app.get("/", (req, res) => res.send("API Çalışıyor..."));
 
-// DEĞİŞTİ - config.app.prefix olarak güncellendi
+// Router'ları ekle
 app.use(`${config.app.prefix}/${ROUTER_PREFIX.USER}`, router.userRouter);
 app.use(`${config.app.prefix}/wallets`, router.walletRouter);
+app.use(`${config.app.prefix}/campaigns`, router.campaignRouter);
+app.use(`${config.app.prefix}/questions`, router.questionRouter);
 
 // DEĞİŞTİ - config.db.uri ve config.app.port olarak güncellendi
 db.mongooseConnection.connectMongoDB().then(() => {
@@ -76,5 +78,6 @@ db.mongooseConnection.connectMongoDB().then(() => {
     console.log(`🔒 Rate limiting: Aktif`);
     console.log(`🚫 NoSQL Injection koruması: Aktif`);
     console.log(`🛡️  Helmet güvenlik headers: Aktif`);
+    console.log(`📊 Kampanya ve Sorular API'leri aktif`);
   });
 });

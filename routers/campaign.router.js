@@ -5,17 +5,19 @@ const middlewares = require("../middlewares/index");
 
 const router = express.Router();
 
-// Kampanya oluştur (müşteri girişi gerekli)
+// Kampanya oluştur (sadece admin ve customer)
 router.post(
   "/create",
   middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdminOrCustomer,
   validation.campaignValidation.validateCreateCampaign,
   controller.campaignController.create
 );
 
-// Tüm kampanyaları getir (herkese açık olabilir)
+// Tüm kampanyaları getir (auth gerekli)
 router.get(
   "/all",
+  middlewares.authMiddleware,
   controller.campaignController.getAll
 );
 
@@ -25,6 +27,15 @@ router.get(
   controller.campaignController.getById
 );
 
+// Kampanyayı güncelle (admin ve customer - service'de detay kontrol)
+router.put(
+  "/:id",
+  middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdminOrCustomer,
+  validation.campaignValidation.validateUpdateCampaign,
+  controller.campaignController.update
+);
+
 // Müşteriye ait kampanyaları getir
 router.get(
   "/customer/list",
@@ -32,10 +43,11 @@ router.get(
   controller.campaignController.getByCustomer
 );
 
-// Kampanyayı sil (müşteri girişi gerekli)
+// Kampanyayı sil (admin ve customer - service'de detay kontrol)
 router.delete(
   "/:id",
   middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdminOrCustomer,
   controller.campaignController.remove
 );
 
