@@ -185,6 +185,31 @@ exports.logout = async (req) => {
   return { message: "Başarıyla çıkış yapıldı" };
 };
 
+exports.getUserById = async (req) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error("Kullanıcı bulunamadı");
+    }
+    return user;
+  } catch (error) {
+    throw new Error(error);
+  }
+};
+
+exports.getUserByName = async (req) => {
+  try {
+    const { name } = req.params;
+    const user = await User.find({ name: name });
+    if (!user) {
+      throw new Error("Kullanıcı bulunamadı");
+    }
+    return user;
+  } catch (error) {
+    throw new Error(error);
+  }
+};
 // ----------------------------
 // Şifre Sıfırlama Fonksiyonları
 // ----------------------------

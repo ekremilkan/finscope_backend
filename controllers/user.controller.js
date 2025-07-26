@@ -193,3 +193,50 @@ exports.resetPassword = async (req, res) => {
     });
   }
 };
+
+
+exports.getUserById = async (req, res) => {
+  try {
+    const data = await userService.user.getUserById(req);
+    res.status(StatusCodes.CREATED).json({
+      ...baseResponse,
+      data: data,
+      timestamp: new Date(),
+      message: "Kullanıcı başarıyla getirildi",
+      code: StatusCodes.CREATED,
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      timestamp: new Date(),
+      message: "Hata oluştu",
+      errorMessage: error.message,
+      code: StatusCodes.INTERNAL_SERVER_ERROR,
+    });
+  }
+};
+
+exports.getUserByName = async (req, res) => {
+  try {
+    const data = await userService.user.getUserByName(req);
+    res.status(StatusCodes.CREATED).json({
+      ...baseResponse,
+      data: data,
+      timestamp: new Date(),
+      message: "Kullanıcı başarıyla getirildi",
+      code: StatusCodes.CREATED,
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      timestamp: new Date(),
+      message: "Hata oluştu",
+      errorMessage: error.message,
+      code: StatusCodes.INTERNAL_SERVER_ERROR,
+    });
+  }
+};
