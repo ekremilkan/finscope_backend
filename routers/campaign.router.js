@@ -14,16 +14,16 @@ router.post(
   controller.campaignController.create
 );
 
-// Tüm kampanyaları getir (auth gerekli)
+// Tüm kampanyaları getir (public - herkes görebilir)
 router.get(
   "/all",
-  middlewares.authMiddleware,
   controller.campaignController.getAll
 );
 
-// Kampanyayı ID'ye göre getir
+// Kampanyayı ID'ye göre getir (giriş yapmış herkes görebilir)
 router.get(
   "/:id",
+  middlewares.authMiddleware,
   controller.campaignController.getById
 );
 
@@ -43,12 +43,28 @@ router.get(
   controller.campaignController.getByCustomer
 );
 
-// Kampanyayı sil (admin ve customer - service'de detay kontrol)
+// Kampanyayı silme isteği (customer için - isActive false yapar)
+router.delete(
+  "/:id/request-delete",
+  middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdminOrCustomer,
+  controller.campaignController.requestDelete
+);
+
+// Kampanyayı sil (sadece admin - gerçek silme)
 router.delete(
   "/:id",
   middlewares.authMiddleware,
-  middlewares.roleMiddleware.requireAdminOrCustomer,
+  middlewares.roleMiddleware.requireAdmin,
   controller.campaignController.remove
+);
+
+// Silme isteklerini getir (sadece admin)
+router.get(
+  "/admin/delete-requests",
+  middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdmin,
+  controller.campaignController.getDeleteRequests
 );
 
 module.exports = { campaign: router };

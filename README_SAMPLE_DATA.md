@@ -258,3 +258,69 @@ db.questions.deleteMany({})
    - Admin: Tüm işlemler
    - Customer: Kendi verileri
    - User: Sadece okuma 
+
+# Kampanya İşlemleri
+
+## Tüm Kampanyaları Getir (Public)
+```bash
+curl -X GET http://localhost:3000/api/v1/campaigns/all
+```
+
+## Kampanya Oluştur
+```bash
+curl -X POST http://localhost:3000/api/v1/campaigns/create \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Blockchain Eğitimi",
+    "description": "Blockchain teknolojisi ve kripto para birimleri hakkında kapsamlı eğitim",
+    "reward": 150,
+    "maxParticipants": 200,
+    "category": "education",
+    "difficulty": "Beginner",
+    "startDate": "2024-12-20T00:00:00.000Z",
+    "endDate": "2024-12-25T23:59:59.000Z",
+    "questions": 10,
+    "images": [
+      "https://example.com/image1.jpg",
+      "https://example.com/image2.jpg"
+    ],
+    "videoLink": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "tags": ["blockchain", "crypto", "education"]
+  }'
+```
+
+## Kampanya Detayını Getir
+```bash
+curl -X GET http://localhost:3000/api/v1/campaigns/CAMPAIGN_ID \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+## Kampanya Güncelle
+```bash
+curl -X PUT http://localhost:3000/api/v1/campaigns/CAMPAIGN_ID \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Güncellenmiş Başlık",
+    "description": "Güncellenmiş açıklama"
+  }'
+```
+
+## Kampanya Silme İsteği (Customer için)
+```bash
+curl -X DELETE http://localhost:3000/api/v1/campaigns/CAMPAIGN_ID/request-delete \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+## Kampanya Sil (Admin için)
+```bash
+curl -X DELETE http://localhost:3000/api/v1/campaigns/CAMPAIGN_ID \
+  -H "Authorization: Bearer ADMIN_TOKEN"
+```
+
+## Silme İsteklerini Getir (Admin için)
+```bash
+curl -X GET http://localhost:3000/api/v1/campaigns/admin/delete-requests \
+  -H "Authorization: Bearer ADMIN_TOKEN"
+``` 

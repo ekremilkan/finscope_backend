@@ -96,27 +96,56 @@ exports.getByCustomer = async (req) => {
   return campaigns;
 };
 
-exports.remove = async (req) => {
+// Customer için silme isteği (isActive false yapar)
+exports.requestDelete = async (req) => {
   const { id } = req.params;
   const createdUserId = req.user._id;
   const userRole = req.user.role;
 
-  // Admin ise tüm kampanyaları silebilir, değilse sadece kendi kampanyasını
-  let campaign;
+  // Admin ise direkt silme yapabilir, customer ise sadece isActive false yapar
   if (userRole === 'admin') {
-    campaign = await Campaign.findById(id);
+    await Campaign.findByIdAndDelete(id);
+    return { message: "Kampanya silindi." };
   } else {
-    campaign = await Campaign.findOne({ _id: id, createdUserId });
-  }
+    // Customer sadece kendi kampanyasını silme isteği yapabilir
+    const campaign = await Campaign.findOne({ _id: id, createdUserId });
+    
+    if (!campaign) {
+      const err = new Error("Bu kampanyayı silme yetkiniz yok veya kampanya bulunamadı.");
+      err.statusCode = StatusCodes.FORBIDDEN;
+      throw err;
+    }
 
-  if (!campaign) {
-    const err = new Error("Bu kampanyayı silme yetkiniz yok veya kampanya bulunamadı.");
+    // isActive false yap
+    await Campaign.findByIdAndUpdate(id, { isActive: false });
+    return { 
+      message: "Kampanya silme isteği gönderildi. Admin onayı bekleniyor.",
+      campaignId: id
+    };
+  }
+};
+
+// Sadece admin için gerçek silme işlemi
+exports.remove = async (req) => {
+  const { id } = req.params;
+  const userRole = req.user.role;
+
+  // Sadece admin gerçek silme yapabilir
+  if (userRole !== 'admin') {
+    const err = new Error("Bu işlem için admin yetkisi gereklidir.");
     err.statusCode = StatusCodes.FORBIDDEN;
     throw err;
   }
 
+  const campaign = await Campaign.findById(id);
+  if (!campaign) {
+    const err = new Error("Kampanya bulunamadı.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
   await Campaign.findByIdAndDelete(id);
-  return { message: "Kampanya silindi." };
+  return { message: "Kampanya kalıcı olarak silindi." };
 };
 
 // Kampanya durumunu güncelle (cron job için)
@@ -133,4 +162,12 @@ exports.updateExpiredCampaigns = async () => {
     }
   );
   return result;
+};
+
+// Admin için silme isteklerini getir
+exports.getDeleteRequests = async () => {
+  const campaigns = await Campaign.find({ isActive: false })
+    .populate("createdUserId", "name email")
+    .sort({ updatedAt: -1 });
+  return campaigns;
 };

@@ -102,6 +102,26 @@ exports.remove = async (req, res) => {
   }
 };
 
+exports.requestDelete = async (req, res) => {
+  try {
+    const data = await campaignService.requestDelete(req);
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Kampanya silme isteği gönderildi. Admin onayı bekleniyor.",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
 exports.getByCustomer = async (req, res) => {
   try {
     const data = await campaignService.getByCustomer(req);
@@ -109,6 +129,26 @@ exports.getByCustomer = async (req, res) => {
       ...baseResponse,
       data,
       message: "Müşteriye ait kampanyalar getirildi",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
+exports.getDeleteRequests = async (req, res) => {
+  try {
+    const data = await campaignService.getDeleteRequests();
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Silme istekleri getirildi",
       code: StatusCodes.OK,
     });
   } catch (error) {

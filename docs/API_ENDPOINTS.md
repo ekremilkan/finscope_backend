@@ -73,16 +73,20 @@ Content-Type: application/json
 
 **Yetki:** Admin ve Customer
 
-### Tüm Kampanyaları Getirme
+### Tüm Kampanyaları Getirme (Public)
 ```http
 GET /api/v1/campaigns/all
-Authorization: Bearer <token>
 ```
+
+**Yetki:** Herkes (auth gerekmez)
 
 ### Kampanya Detayı Getirme
 ```http
 GET /api/v1/campaigns/:id
+Authorization: Bearer <token>
 ```
+
+**Yetki:** Giriş yapmış herkes
 
 ### Kampanya Güncelleme
 ```http
@@ -101,7 +105,7 @@ Content-Type: application/json
 }
 ```
 
-**Yetki:** Admin ve Customer (kendi kampanyaları)
+**Yetki:** Admin (tümü), Customer (kendi kampanyaları)
 
 ### Müşteri Kampanyalarını Getirme
 ```http
@@ -109,13 +113,34 @@ GET /api/v1/campaigns/customer/list
 Authorization: Bearer <token>
 ```
 
-### Kampanya Silme
+**Yetki:** Giriş yapmış herkes
+
+### Kampanya Silme İsteği (Customer için)
+```http
+DELETE /api/v1/campaigns/:id/request-delete
+Authorization: Bearer <token>
+```
+
+**Yetki:** Admin ve Customer
+**İşlem:** Customer için isActive false yapar, Admin için direkt siler
+
+### Kampanya Silme (Admin için)
 ```http
 DELETE /api/v1/campaigns/:id
 Authorization: Bearer <token>
 ```
 
-**Yetki:** Admin ve Customer (kendi kampanyaları)
+**Yetki:** Sadece Admin
+**İşlem:** Kampanyayı kalıcı olarak siler
+
+### Silme İsteklerini Getirme (Admin için)
+```http
+GET /api/v1/campaigns/admin/delete-requests
+Authorization: Bearer <token>
+```
+
+**Yetki:** Sadece Admin
+**İşlem:** isActive false olan kampanyaları listeler
 
 ## ❓ Question Endpoints
 
