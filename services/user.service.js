@@ -126,7 +126,6 @@ exports.resendVerificationCode = async (req) => {
 
 exports.verifyLogin = async (req) => {
   const { email, verificationCode } = req.body;
-
   const user = await User.findOne({ email, verificationCode });
 
   // Kod yanlış veya kullanıcı bulunamadı

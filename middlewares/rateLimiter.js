@@ -1,7 +1,10 @@
 const rateLimit = require("express-rate-limit");
 
+// Development ortamında rate limiter'ları devre dışı bırak
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 // Genel API için rate limiter
-const generalLimiter = rateLimit({
+const generalLimiter = isDevelopment ? (req, res, next) => next() : rateLimit({
   windowMs: 15 * 60 * 1000, // 15 dakika
   max: 100, // IP başına 15 dakikada maksimum 100 istek
   message: {
@@ -15,7 +18,7 @@ const generalLimiter = rateLimit({
 });
 
 // Auth işlemleri için daha sıkı limiter
-const authLimiter = rateLimit({
+const authLimiter = isDevelopment ? (req, res, next) => next() : rateLimit({
   windowMs: 15 * 60 * 1000, // 15 dakika
   max: 5, // IP başına 15 dakikada maksimum 5 giriş denemesi
   message: {
@@ -31,7 +34,7 @@ const authLimiter = rateLimit({
 });
 
 // Kayıt işlemleri için limiter
-const registerLimiter = rateLimit({
+const registerLimiter = isDevelopment ? (req, res, next) => next() : rateLimit({
   windowMs: 60 * 60 * 1000, // 1 saat
   max: 3, // IP başına 1 saatte maksimum 3 kayıt denemesi
   message: {
@@ -45,7 +48,7 @@ const registerLimiter = rateLimit({
 });
 
 // Şifre sıfırlama (forgot password) için limiter
-const forgotPasswordLimiter = rateLimit({
+const forgotPasswordLimiter = isDevelopment ? (req, res, next) => next() : rateLimit({
   windowMs: 15 * 60 * 1000, // 15 dakika
   max: 10, // IP başına 15 dakikada maksimum 10 istek
   message: {

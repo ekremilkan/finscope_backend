@@ -1,6 +1,6 @@
 const Joi = require('joi');
 
-// Seçenek validation şeması
+// Seçenek şeması
 const optionSchema = Joi.object({
   text: Joi.string()
     .required()
@@ -11,7 +11,7 @@ const optionSchema = Joi.object({
   isTrue: Joi.boolean()
     .default(false)
     .messages({
-      'boolean.base': 'Doğru cevap durumu boolean olmalıdır'
+      'boolean.base': 'Doğru cevap boolean olmalıdır'
     })
 });
 

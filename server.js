@@ -14,6 +14,10 @@ const ROUTER_PREFIX = require("./consts/router.prefix.consts");
 
 const app = express();
 
+// NODE_ENV kontrolü
+const isDevelopment = process.env.NODE_ENV === 'development';
+console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+
 // Güvenlik middleware'leri
 app.use(
   helmet({
@@ -59,7 +63,7 @@ app.use(
   })
 );
 
-// Global rate limiter
+// Global rate limiter (development'ta devre dışı)
 app.use(middlewares.rateLimiter.generalLimiter);
 
 // Auth middleware
@@ -80,7 +84,7 @@ db.mongooseConnection.connectMongoDB().then(() => {
     console.log(`✅ Server ${config.app.port} portunda çalışıyor`);
     console.log(`🔗 API URL: http://localhost:${config.app.port}`);
     console.log(`🛡️  Güvenlik önlemleri aktif`);
-    console.log(`🔒 Rate limiting: Aktif`);
+    console.log(`🔒 Rate limiting: ${isDevelopment ? 'Devre dışı (Development)' : 'Aktif'}`);
     console.log(`🚫 NoSQL Injection koruması: Aktif`);
     console.log(`🛡️  Helmet güvenlik headers: Aktif`);
     console.log(`📊 Kampanya ve Sorular API'leri aktif`);

@@ -1,5 +1,16 @@
 const Question = require("../models/questions.model");
+const Campaign = require("../models/campaign.model");
 const { StatusCodes } = require("http-status-codes");
+
+// Kampanya soru sayısını güncelle
+const updateCampaignQuestionCount = async (campaignId) => {
+  const campaign = await Campaign.findById(campaignId);
+  if (!campaign) return 0;
+  
+  const questionCount = campaign.questionIds.length;
+  await Campaign.findByIdAndUpdate(campaignId, { questions: questionCount });
+  return questionCount;
+};
 
 exports.create = async (req) => {
   const { questionText, options, campaignId, createdUserId, order } = req;
@@ -17,22 +28,38 @@ exports.create = async (req) => {
     throw err;
   }
 
+  // Kampanyanın var olup olmadığını kontrol et
+  const campaign = await Campaign.findById(campaignId);
+  if (!campaign) {
+    const err = new Error("Kampanya bulunamadı.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
   const question = new Question({
     questionText,
     options,
-    campaignId,
     createdUserId,
     order: order || 0,
   });
 
   await question.save();
+
+  // Kampanyanın questionIds alanını güncelle
+  await Campaign.findByIdAndUpdate(
+    campaignId,
+    { $push: { questionIds: question._id } }
+  );
+
+  // Kampanya soru sayısını güncelle
+  await updateCampaignQuestionCount(campaignId);
+
   return question;
 };
 
 exports.getAll = async () => {
   return await Question.find()
     .populate("createdUserId", "name email")
-    .populate("campaignId", "title")
     .sort({ order: 1, createdAt: -1 });
 };
 
@@ -44,7 +71,16 @@ exports.getByCampaign = async (req) => {
     throw err;
   }
 
-  return await Question.find({ campaignId })
+  // Kampanyayı bul ve questionIds'i al
+  const campaign = await Campaign.findById(campaignId);
+  if (!campaign) {
+    const err = new Error("Kampanya bulunamadı.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
+  // Kampanyanın questionIds'ine göre soruları getir
+  return await Question.find({ _id: { $in: campaign.questionIds } })
     .populate("createdUserId", "name email")
     .sort({ order: 1, createdAt: -1 });
 };
@@ -52,7 +88,6 @@ exports.getByCampaign = async (req) => {
 exports.getByCustomer = async (req) => {
   const createdUserId = req.user._id;
   return await Question.find({ createdUserId })
-    .populate("campaignId", "title")
     .sort({ order: 1, createdAt: -1 });
 };
 
@@ -96,7 +131,7 @@ exports.update = async (req) => {
     id,
     { questionText, options, order },
     { new: true, runValidators: true }
-  ).populate("createdUserId", "name email").populate("campaignId", "title");
+  ).populate("createdUserId", "name email");
 
   return updatedQuestion;
 };
@@ -120,6 +155,19 @@ exports.remove = async (req) => {
     throw err;
   }
 
+  // Bu soruyu içeren tüm kampanyalardan çıkar
+  await Campaign.updateMany(
+    { questionIds: question._id },
+    { $pull: { questionIds: question._id } }
+  );
+
   await Question.findByIdAndDelete(id);
+
+  // Etkilenen kampanyaların soru sayısını güncelle
+  const affectedCampaigns = await Campaign.find({ questionIds: question._id });
+  for (const campaign of affectedCampaigns) {
+    await updateCampaignQuestionCount(campaign._id);
+  }
+
   return { message: "Soru silindi." };
 };

@@ -26,11 +26,6 @@ const questionSchema = new mongoose.Schema({
       message: 'There must be exactly 4 options.',
     },
   },
-  campaignId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Campaign', // Hangi kampanyaya ait
-    required: true,
-  },
   createdUserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User', // Hangi kullanıcı oluşturdu

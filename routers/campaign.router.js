@@ -27,6 +27,36 @@ router.get(
   controller.campaignController.getById
 );
 
+// ✅ YENİ: Kullanıcının kampanya progress'ini getir
+router.get(
+  "/:id/user-progress",
+  middlewares.authMiddleware,
+  controller.campaignController.getUserProgress
+);
+
+// ✅ YENİ: Kampanyaya katıl
+router.post(
+  "/:id/join",
+  middlewares.authMiddleware,
+  controller.campaignController.joinCampaign
+);
+
+// ✅ YENİ: Progress güncelle
+router.put(
+  "/:id/progress",
+  middlewares.authMiddleware,
+  validation.campaignValidation.validateUpdateProgress,
+  controller.campaignController.updateProgress
+);
+
+// ✅ YENİ: Quiz tamamla
+router.post(
+  "/:id/complete",
+  middlewares.authMiddleware,
+  validation.campaignValidation.validateCompleteQuiz,
+  controller.campaignController.completeQuiz
+);
+
 // Kampanyayı güncelle (admin ve customer - service'de detay kontrol)
 router.put(
   "/:id",
