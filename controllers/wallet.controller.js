@@ -3,6 +3,52 @@ const { StatusCodes } = require("http-status-codes");
 const baseResponse = require("../dto/baseresponse.dto");
 const utils = require("../utils/index");
 
+
+exports.generateNonce = async (req, res) => {
+  try {
+    const json = await walletService.generateNonce(req);
+    res.status(StatusCodes.CREATED).json({
+      ...baseResponse,
+      code: StatusCodes.CREATED,
+      data: json,
+      message: "Nonce başarıyla oluşturuldu",
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      timestamp: new Date(),
+      code: StatusCodes.INTERNAL_SERVER_ERROR,
+    });
+  }
+};
+
+exports.verifySignatureAndConnect = async (req, res) => {
+  try {
+    const json = await walletService.verifySignatureAndConnect(req);
+    res.status(StatusCodes.CREATED).json({
+      ...baseResponse,
+      code: StatusCodes.CREATED,
+      data: json,
+      message: "Cüzdan başarıyla bağlandı",
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      timestamp: new Date(),
+      code: StatusCodes.INTERNAL_SERVER_ERROR,
+    });
+  }
+};
+
+
 // YENİ: Adres doğrulama endpoint'i
 exports.validateAddress = async (req, res) => {
   try {

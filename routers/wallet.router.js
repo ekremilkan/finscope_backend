@@ -4,6 +4,9 @@ const walletController = require("../controllers/wallet.controller");
 const authMiddleware = require("../middlewares/auth.middleware");
 const validation = require("../validations/index");
 
+router.get("/nonce", walletController.generateNonce);
+router.post("/verifySignatureAndConnect", walletController.verifySignatureAndConnect);
+
 // YENİ: Kimlik doğrulama gerektirmeyen endpoint'ler
 router.post("/validate-address", 
   validation.walletValidation.validateAddressCheck,

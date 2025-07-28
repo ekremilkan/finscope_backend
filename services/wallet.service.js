@@ -3,6 +3,65 @@ const Wallet = require("../models/wallet.model");
 const Transaction = require("../models/transaction.model");
 const { StatusCodes } = require("http-status-codes");
 const utils = require("../utils/index");
+const crypto = require("crypto");
+const { ethers } = require("ethers");
+
+const nonceStore = new Map(); // productionda Redis’e taşınması önerilir
+
+exports.generateNonce = async (req) => {
+  try {
+    const { email } = req.query;
+    if (!email) throw new Error("Email is required");
+
+    const nonce = crypto.randomBytes(16).toString("hex");
+    nonceStore.set(email, nonce);
+
+    return { nonce };
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
+exports.verifySignatureAndConnect = async (req) => {
+  try {
+    const { email, message, signature, network } = req.body;
+    if (!email || !message || !signature || !network) {
+      throw new Error("Missing fields");
+    }
+
+    // İmza ile adresi doğrula
+    const address = ethers.utils.verifyMessage(message, signature);
+
+    // Email için nonce kontrolü
+    const savedNonce = nonceStore.get(email);
+    if (!savedNonce || !message.includes(savedNonce)) {
+      throw new Error("Invalid or expired nonce");
+    }
+
+    // Kullanıcıyı bul
+    const user = await User.findOne({ email });
+    if (!user) throw new Error("User not found");
+
+    // Adres daha önce bağlandı mı kontrol et
+    const existing = await Wallet.findOne({ address });
+    if (existing) throw new Error("Wallet already connected");
+
+    // Yeni cüzdanı oluştur ve kullanıcıya bağla
+    const wallet = new Wallet({ user: user._id, address, network });
+    await wallet.save();
+
+    user.wallets.push(wallet._id);
+    await user.save();
+
+    // Nonce sil
+    nonceStore.delete(email);
+
+    return { message: "Wallet connected", address };
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
 
 exports.connectWallet = async (req) => {
   const { userId, network, address } = req.body;
