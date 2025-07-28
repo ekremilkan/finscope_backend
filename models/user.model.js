@@ -42,6 +42,11 @@ const userSchema = new mongoose.Schema(
       default: 'user',
       required: true,
     },
+    // ✅ YENİ: Email doğrulama durumu
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
     wallets: [
       {
         type: mongoose.Schema.Types.ObjectId,

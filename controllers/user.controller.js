@@ -25,10 +25,16 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const data = await userService.user.login(req);
+    
+    // ✅ YENİ: isVerified durumuna göre mesaj ayarla
+    const message = data.isVerified 
+      ? "Giriş başarılı" 
+      : "Doğrulama kodu e-posta adresinize gönderildi";
+    
     res.status(StatusCodes.OK).json({
       ...baseResponse,
       data,
-      message: "Giriş başarılı",
+      message,
       code: StatusCodes.OK,
     });
   } catch (error) {
@@ -64,11 +70,17 @@ exports.resendVerificationCode = async (req, res) => {
 
 exports.verifyLogin = async (req, res) => {
   try {
-    const data = await userService.user.verifyLogin(req); // Barrel'dan userService'i aldığınızı varsayıyorum
+    const data = await userService.user.verifyLogin(req);
+    
+    // ✅ YENİ: isVerified durumuna göre mesaj ayarla
+    const message = data.isVerified 
+      ? "Doğrulama başarılı. Giriş yapıldı." 
+      : "Doğrulama başarılı";
+    
     res.status(StatusCodes.OK).json({
-      ...baseResponse, // baseResponse'u import ettiğinizi varsayıyorum
+      ...baseResponse,
       data,
-      message: "Giriş başarılı",
+      message,
       code: StatusCodes.OK,
     });
   } catch (error) {

@@ -54,33 +54,58 @@ exports.login = async (req) => {
     throw err;
   }
 
-  // --- DEĞİŞEN KISIM BAŞLANGICI ---
+  // ✅ YENİ: Kullanıcı doğrulanmış mı kontrol et
+  if (user.isVerified) {
+    // Kullanıcı zaten doğrulanmış, direkt giriş yap
+    await user.resetLoginAttempts();
+    
+    // Token'ları oluştur
+    const token = user.generateAccessToken();
+    const refreshToken = utils.helper.createRefreshToken(user);
+    
+    // Refresh token'ı kaydet
+    user.refreshToken = refreshToken;
+    user.tokenCreatedAt = new Date();
+    await user.save();
 
-  // 6 haneli rastgele bir sayısal kod üret
-  const verificationCode = Math.floor(
-    100000 + Math.random() * 900000
-  ).toString();
+    const userResponse = user.toJSON();
 
-  // Kodun geçerlilik süresini 10 dakika olarak ayarla
-  user.verificationCode = verificationCode;
-  user.verificationCodeExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 dakika
+    return { 
+      user: userResponse, 
+      token, 
+      refreshToken,
+      isVerified: true,
+      message: "Giriş başarılı" 
+    };
+  } else {
+    // Kullanıcı henüz doğrulanmamış, verification code gönder
+    const verificationCode = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
 
-  await user.save();
+    // Kodun geçerlilik süresini 10 dakika olarak ayarla
+    user.verificationCode = verificationCode;
+    user.verificationCodeExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 dakika
 
-  // E-posta ile kodu gönder (hata olursa logla ama kullanıcıya yansıtma)
-  try {
-    await utils.email.sendVerificationCode(user.email, verificationCode);
-  } catch (emailError) {
-    console.error(
-      `Verification email could not be sent to ${user.email}`,
-      emailError
-    );
+    await user.save();
+
+    // E-posta ile kodu gönder (hata olursa logla ama kullanıcıya yansıtma)
+    try {
+      await utils.email.sendVerificationCode(user.email, verificationCode);
+    } catch (emailError) {
+      console.error(
+        `Verification email could not be sent to ${user.email}`,
+        emailError
+      );
+    }
+
+    // Doğrulama gerektiğini belirten yanıt dön
+    return { 
+      message: "Doğrulama kodu e-posta adresinize gönderildi.",
+      isVerified: false,
+      email: user.email
+    };
   }
-
-  // Başarılı ama henüz giriş yapılmamış yanıtı dön
-  return { message: "Doğrulama kodu e-posta adresinize gönderildi." };
-
-  // --- DEĞİŞEN KISIM SONU ---
 };
 
 exports.resendVerificationCode = async (req) => {
@@ -156,6 +181,9 @@ exports.verifyLogin = async (req) => {
     await user.resetLoginAttempts();
   }
 
+  // ✅ YENİ: Kullanıcıyı doğrulanmış olarak işaretle
+  user.isVerified = true;
+
   // Token'ları oluştur
   const token = user.generateAccessToken();
   const refreshToken = utils.helper.createRefreshToken(user);
@@ -170,7 +198,13 @@ exports.verifyLogin = async (req) => {
 
   const userResponse = user.toJSON();
 
-  return { user: userResponse, token, refreshToken };
+  return { 
+    user: userResponse, 
+    token, 
+    refreshToken,
+    isVerified: true,
+    message: "Doğrulama başarılı. Giriş yapıldı." 
+  };
 };
 
 exports.logout = async (req) => {
