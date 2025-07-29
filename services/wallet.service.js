@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const User = require("../models/user.model");
 const Wallet = require("../models/wallet.model");
 const Transaction = require("../models/transaction.model");
@@ -6,7 +7,7 @@ const utils = require("../utils/index");
 const crypto = require("crypto");
 const { ethers } = require("ethers");
 
-const nonceStore = require('./nonce-store.service') // productionda Redis’e taşınması önerilir
+const nonceStore = require("./nonce-store.service"); // productionda Redis’e taşınması önerilir
 
 exports.generateNonce = async (req) => {
   try {
@@ -29,7 +30,13 @@ exports.verifySignatureAndConnect = async (req) => {
 
   try {
     console.log("➡️ [verifySignature] İstek geldi. Body:", req.body);
-    const { email, message, signature, network, address: frontendAddress } = req.body;
+    const {
+      email,
+      message,
+      signature,
+      network,
+      address: frontendAddress,
+    } = req.body;
 
     if (!email || !message || !signature || !network) {
       throw new Error("Eksik alanlar var (email, message, signature, network)");
@@ -37,15 +44,21 @@ exports.verifySignatureAndConnect = async (req) => {
 
     console.log("⏳ [verifySignature] İmza doğrulanıyor...");
     const recoveredAddress = ethers.utils.verifyMessage(message, signature);
-    console.log(`✅ [verifySignature] İmzadan çıkarılan adres: ${recoveredAddress}`);
-    console.log(`ℹ️ [verifySignature] Frontend'den gönderilen adres: ${frontendAddress}`);
+    console.log(
+      `✅ [verifySignature] İmzadan çıkarılan adres: ${recoveredAddress}`
+    );
+    console.log(
+      `ℹ️ [verifySignature] Frontend'den gönderilen adres: ${frontendAddress}`
+    );
 
     // Güvenlik için her zaman imzadan çıkarılan adresi kullanırız.
     const addressToSave = recoveredAddress;
 
     const savedNonce = nonceStore.get(email);
     if (!savedNonce || !message.includes(savedNonce)) {
-      console.error(`❌ [verifySignature] Nonce hatası! Beklenen nonce'u içeren mesaj bekleniyordu.`);
+      console.error(
+        `❌ [verifySignature] Nonce hatası! Beklenen nonce'u içeren mesaj bekleniyordu.`
+      );
       throw new Error("Geçersiz veya süresi dolmuş nonce");
     }
     console.log("✅ [verifySignature] Nonce doğrulandı.");
@@ -57,15 +70,32 @@ exports.verifySignatureAndConnect = async (req) => {
     }
     console.log(`✅ [verifySignature] Kullanıcı bulundu: ${user._id}`);
 
-    const existingWallet = await Wallet.findOne({ address: addressToSave }).session(session);
+    const existingWallet = await Wallet.findOne({
+      address: addressToSave,
+    }).session(session);
     if (existingWallet) {
-      console.error(`❌ [verifySignature] Bu cüzdan zaten kullanımda: ${addressToSave}`);
-      throw new Error("Bu cüzdan adresi zaten başka bir hesaba bağlı.");
+      if (existingWallet.user.toString() !== user._id.toString()) {
+        throw new Error("Bu cüzdan adresi zaten başka bir hesaba bağlı.");
+      }
+
+      console.log(
+        "ℹ️ Bu cüzdan zaten bu kullanıcıya ait. Yeniden eklenmeyecek."
+      );
+      await session.commitTransaction();
+      nonceStore.delete(email);
+      session.endSession();
+      return { message: "Wallet already connected", address: addressToSave };
     }
     console.log("✅ [verifySignature] Cüzdan daha önce bağlanmamış.");
 
-    console.log("⏳ [verifySignature] Yeni cüzdan veritabanına kaydediliyor...");
-    const wallet = new Wallet({ user: user._id, address: addressToSave, network });
+    console.log(
+      "⏳ [verifySignature] Yeni cüzdan veritabanına kaydediliyor..."
+    );
+    const wallet = new Wallet({
+      user: user._id,
+      address: addressToSave,
+      network,
+    });
     await wallet.save({ session });
 
     user.wallets.push(wallet._id);
@@ -73,22 +103,25 @@ exports.verifySignatureAndConnect = async (req) => {
 
     // Tüm işlemler başarılı, transaction'ı onayla.
     await session.commitTransaction();
-    console.log("✅ [verifySignature] Veritabanı işlemleri başarıyla tamamlandı (commit).");
+    console.log(
+      "✅ [verifySignature] Veritabanı işlemleri başarıyla tamamlandı (commit)."
+    );
 
     // Her şey bittikten sonra nonce'u sil.
     nonceStore.delete(email);
     console.log(`✅ [verifySignature] Nonce silindi: ${email}`);
-    
-    return { message: "Wallet connected", address: addressToSave };
 
+    return { message: "Wallet connected", address: addressToSave };
   } catch (error) {
     // Herhangi bir hata olursa tüm işlemleri geri al.
     await session.abortTransaction();
-    console.error("💥 [verifySignature] Hata nedeniyle işlemler geri alındı (abort):", error.message);
-    
+    console.error(
+      "💥 [verifySignature] Hata nedeniyle işlemler geri alındı (abort):",
+      error.message
+    );
+
     // Hatayı üst katmana fırlat
     throw new Error(error.message);
-
   } finally {
     // Her durumda (başarılı veya başarısız) session'ı sonlandır.
     session.endSession();
