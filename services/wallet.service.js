@@ -6,7 +6,7 @@ const utils = require("../utils/index");
 const crypto = require("crypto");
 const { ethers } = require("ethers");
 
-const nonceStore = new Map(); // productionda Redis’e taşınması önerilir
+const nonceStore = require('./nonce-store.service') // productionda Redis’e taşınması önerilir
 
 exports.generateNonce = async (req) => {
   try {
@@ -23,45 +23,77 @@ exports.generateNonce = async (req) => {
 };
 
 exports.verifySignatureAndConnect = async (req) => {
+  // Mongoose session'ı sadece bu fonksiyonun başında başlatıyoruz
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { email, message, signature, network } = req.body;
+    console.log("➡️ [verifySignature] İstek geldi. Body:", req.body);
+    const { email, message, signature, network, address: frontendAddress } = req.body;
+
     if (!email || !message || !signature || !network) {
-      throw new Error("Missing fields");
+      throw new Error("Eksik alanlar var (email, message, signature, network)");
     }
 
-    // İmza ile adresi doğrula
-    const address = ethers.utils.verifyMessage(message, signature);
+    console.log("⏳ [verifySignature] İmza doğrulanıyor...");
+    const recoveredAddress = ethers.utils.verifyMessage(message, signature);
+    console.log(`✅ [verifySignature] İmzadan çıkarılan adres: ${recoveredAddress}`);
+    console.log(`ℹ️ [verifySignature] Frontend'den gönderilen adres: ${frontendAddress}`);
 
-    // Email için nonce kontrolü
+    // Güvenlik için her zaman imzadan çıkarılan adresi kullanırız.
+    const addressToSave = recoveredAddress;
+
     const savedNonce = nonceStore.get(email);
     if (!savedNonce || !message.includes(savedNonce)) {
-      throw new Error("Invalid or expired nonce");
+      console.error(`❌ [verifySignature] Nonce hatası! Beklenen nonce'u içeren mesaj bekleniyordu.`);
+      throw new Error("Geçersiz veya süresi dolmuş nonce");
     }
+    console.log("✅ [verifySignature] Nonce doğrulandı.");
 
-    // Kullanıcıyı bul
-    const user = await User.findOne({ email });
-    if (!user) throw new Error("User not found");
+    const user = await User.findOne({ email }).session(session);
+    if (!user) {
+      console.error(`❌ [verifySignature] Kullanıcı bulunamadı: ${email}`);
+      throw new Error("Kullanıcı bulunamadı");
+    }
+    console.log(`✅ [verifySignature] Kullanıcı bulundu: ${user._id}`);
 
-    // Adres daha önce bağlandı mı kontrol et
-    const existing = await Wallet.findOne({ address });
-    if (existing) throw new Error("Wallet already connected");
+    const existingWallet = await Wallet.findOne({ address: addressToSave }).session(session);
+    if (existingWallet) {
+      console.error(`❌ [verifySignature] Bu cüzdan zaten kullanımda: ${addressToSave}`);
+      throw new Error("Bu cüzdan adresi zaten başka bir hesaba bağlı.");
+    }
+    console.log("✅ [verifySignature] Cüzdan daha önce bağlanmamış.");
 
-    // Yeni cüzdanı oluştur ve kullanıcıya bağla
-    const wallet = new Wallet({ user: user._id, address, network });
-    await wallet.save();
+    console.log("⏳ [verifySignature] Yeni cüzdan veritabanına kaydediliyor...");
+    const wallet = new Wallet({ user: user._id, address: addressToSave, network });
+    await wallet.save({ session });
 
     user.wallets.push(wallet._id);
-    await user.save();
+    await user.save({ session });
 
-    // Nonce sil
+    // Tüm işlemler başarılı, transaction'ı onayla.
+    await session.commitTransaction();
+    console.log("✅ [verifySignature] Veritabanı işlemleri başarıyla tamamlandı (commit).");
+
+    // Her şey bittikten sonra nonce'u sil.
     nonceStore.delete(email);
+    console.log(`✅ [verifySignature] Nonce silindi: ${email}`);
+    
+    return { message: "Wallet connected", address: addressToSave };
 
-    return { message: "Wallet connected", address };
   } catch (error) {
+    // Herhangi bir hata olursa tüm işlemleri geri al.
+    await session.abortTransaction();
+    console.error("💥 [verifySignature] Hata nedeniyle işlemler geri alındı (abort):", error.message);
+    
+    // Hatayı üst katmana fırlat
     throw new Error(error.message);
+
+  } finally {
+    // Her durumda (başarılı veya başarısız) session'ı sonlandır.
+    session.endSession();
   }
 };
-
 
 exports.connectWallet = async (req) => {
   const { userId, network, address } = req.body;
@@ -141,7 +173,10 @@ exports.removeAirdropWallet = async (req) => {
   const { userId } = req.body;
 
   // Kullanıcının airdrop cüzdanı var mı kontrol et
-  const airdropWallet = await Wallet.findOne({ user: userId, isAirdropAddress: true });
+  const airdropWallet = await Wallet.findOne({
+    user: userId,
+    isAirdropAddress: true,
+  });
   if (!airdropWallet) {
     const err = new Error("Airdrop olarak ayarlanmış cüzdan bulunamadı.");
     err.statusCode = StatusCodes.BAD_REQUEST;
@@ -159,7 +194,7 @@ exports.removeAirdropWallet = async (req) => {
   return {
     user: userResponse,
     removedAirdropAddress: airdropWallet.address,
-    message: "Airdrop cüzdanı kaldırıldı"
+    message: "Airdrop cüzdanı kaldırıldı",
   };
 };
 
@@ -167,20 +202,23 @@ exports.removeAirdropWallet = async (req) => {
 exports.getAirdropWallet = async (req) => {
   const { userId } = req.query;
 
-  const airdropWallet = await Wallet.findOne({ user: userId, isAirdropAddress: true });
-  
+  const airdropWallet = await Wallet.findOne({
+    user: userId,
+    isAirdropAddress: true,
+  });
+
   if (!airdropWallet) {
     return {
       hasAirdrop: false,
       airdropWallet: null,
-      message: "Airdrop cüzdanı ayarlanmamış"
+      message: "Airdrop cüzdanı ayarlanmamış",
     };
   }
 
   return {
     hasAirdrop: true,
     airdropWallet: airdropWallet,
-    message: "Airdrop cüzdanı bulundu"
+    message: "Airdrop cüzdanı bulundu",
   };
 };
 
@@ -189,23 +227,23 @@ exports.getUserWallets = async (req) => {
   const { userId } = req.body;
 
   const wallets = await Wallet.find({ user: userId }).sort({ createdAt: -1 });
-  
+
   // Her cüzdan için toplam USD değerini hesapla
-  const walletsWithCalculatedValues = wallets.map(wallet => {
+  const walletsWithCalculatedValues = wallets.map((wallet) => {
     const walletObj = wallet.toObject();
-    
+
     // Eğer bakiye yoksa boş array ver
     if (!walletObj.balances || walletObj.balances.length === 0) {
       walletObj.balances = [];
       walletObj.totalUsdValue = "0";
     }
-    
+
     // Manuel bakiye artık desteklenmiyor - tüm bakiyeler blockchain'den
     // walletObj.isManualBalance her zaman false olacak
-    
+
     return walletObj;
   });
-  
+
   return {
     wallets: walletsWithCalculatedValues,
     totalCount: wallets.length,
@@ -225,14 +263,16 @@ exports.deleteWallet = async (req) => {
 
   // Eğer airdrop cüzdanı siliniyor ise uyarı ver
   if (wallet.isAirdropAddress) {
-    const err = new Error("Airdrop cüzdanını silmeden önce başka bir cüzdan seçin.");
+    const err = new Error(
+      "Airdrop cüzdanını silmeden önce başka bir cüzdan seçin."
+    );
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
 
   // User'dan wallet referansını kaldır
   await User.findByIdAndUpdate(userId, {
-    $pull: { wallets: walletId }
+    $pull: { wallets: walletId },
   });
 
   // Wallet'ı sil
@@ -258,7 +298,7 @@ exports.getWalletTransactions = async (req) => {
   }
 
   const skip = (page - 1) * limit;
-  
+
   const transactions = await Transaction.find({ wallet: walletId })
     .sort({ createdAt: -1 })
     .skip(skip)
@@ -279,7 +319,17 @@ exports.getWalletTransactions = async (req) => {
 
 // YENİ: İşlem ekleme (demo/test için)
 exports.addTransaction = async (req) => {
-  const { userId, walletId, type, amount, currency, txHash, fromAddress, toAddress, description } = req.body;
+  const {
+    userId,
+    walletId,
+    type,
+    amount,
+    currency,
+    txHash,
+    fromAddress,
+    toAddress,
+    description,
+  } = req.body;
 
   // Wallet sahiplik kontrolü
   const wallet = await Wallet.findOne({ _id: walletId, user: userId });
@@ -326,8 +376,11 @@ exports.updateWalletBalance = async (req) => {
   }
 
   // Blockchain'den bakiye çek
-  const balanceResult = await utils.balanceFetcher.fetchWalletBalance(wallet.network, wallet.address);
-  
+  const balanceResult = await utils.balanceFetcher.fetchWalletBalance(
+    wallet.network,
+    wallet.address
+  );
+
   if (!balanceResult.success) {
     const err = new Error(`Bakiye çekme hatası: ${balanceResult.error}`);
     err.statusCode = StatusCodes.BAD_REQUEST;
@@ -335,22 +388,22 @@ exports.updateWalletBalance = async (req) => {
   }
 
   // Wallet'ı güncelle - HER ZAMAN OTOMATİK
-  wallet.balances = balanceResult.balances.map(balance => ({
+  wallet.balances = balanceResult.balances.map((balance) => ({
     currency: balance.currency,
     amount: balance.amount,
     usdValue: balance.usdValue,
-    lastUpdated: new Date()
+    lastUpdated: new Date(),
   }));
-  
+
   wallet.totalUsdValue = balanceResult.totalUsdValue;
   wallet.lastBalanceCheck = new Date();
   wallet.isManualBalance = false; // HER ZAMAN OTOMATİK
-  
+
   await wallet.save();
 
   return {
     wallet: wallet,
-    message: "Bakiye blockchain'den başarıyla güncellendi"
+    message: "Bakiye blockchain'den başarıyla güncellendi",
   };
 };
 
@@ -363,34 +416,38 @@ exports.updateAllWalletBalances = async (req) => {
 
   // Tüm cüzdanları otomatik moda çevir
   await Wallet.updateMany({ user: userId }, { isManualBalance: false });
-  
+
   const wallets = await Wallet.find({ user: userId });
-  
+
   if (wallets.length === 0) {
     return {
       message: "Güncellenecek cüzdan bulunamadı",
-      updatedCount: 0
+      updatedCount: 0,
     };
   }
 
-  const results = await utils.balanceFetcher.fetchMultipleWalletBalances(wallets);
-  
+  const results = await utils.balanceFetcher.fetchMultipleWalletBalances(
+    wallets
+  );
+
   let updatedCount = 0;
   const updatePromises = results.map(async (result) => {
     if (result.result.success) {
-      const wallet = wallets.find(w => w._id.toString() === result.walletId.toString());
+      const wallet = wallets.find(
+        (w) => w._id.toString() === result.walletId.toString()
+      );
       if (wallet) {
-        wallet.balances = result.result.balances.map(balance => ({
+        wallet.balances = result.result.balances.map((balance) => ({
           currency: balance.currency,
           amount: balance.amount,
           usdValue: balance.usdValue,
-          lastUpdated: new Date()
+          lastUpdated: new Date(),
         }));
-        
+
         wallet.totalUsdValue = result.result.totalUsdValue;
         wallet.lastBalanceCheck = new Date();
         wallet.isManualBalance = false; // HER ZAMAN OTOMATİK
-        
+
         await wallet.save();
         updatedCount++;
       }
@@ -402,7 +459,7 @@ exports.updateAllWalletBalances = async (req) => {
   return {
     message: `${updatedCount} cüzdan bakiyesi blockchain'den güncellendi`,
     updatedCount,
-    totalWallets: wallets.length
+    totalWallets: wallets.length,
   };
 };
 
@@ -411,30 +468,30 @@ exports.getUserPortfolioValue = async (req) => {
   const { userId } = req.query;
 
   const wallets = await Wallet.find({ user: userId });
-  
+
   let totalUsdValue = 0;
   const portfolioBreakdown = [];
   const currencyTotals = {};
 
-  wallets.forEach(wallet => {
+  wallets.forEach((wallet) => {
     totalUsdValue += parseFloat(wallet.totalUsdValue || "0");
-    
-    wallet.balances.forEach(balance => {
+
+    wallet.balances.forEach((balance) => {
       if (!currencyTotals[balance.currency]) {
         currencyTotals[balance.currency] = {
           currency: balance.currency,
           totalAmount: "0",
-          totalUsdValue: "0"
+          totalUsdValue: "0",
         };
       }
-      
+
       currencyTotals[balance.currency].totalAmount = (
-        parseFloat(currencyTotals[balance.currency].totalAmount) + 
+        parseFloat(currencyTotals[balance.currency].totalAmount) +
         parseFloat(balance.amount)
       ).toString();
-      
+
       currencyTotals[balance.currency].totalUsdValue = (
-        parseFloat(currencyTotals[balance.currency].totalUsdValue) + 
+        parseFloat(currencyTotals[balance.currency].totalUsdValue) +
         parseFloat(balance.usdValue)
       ).toFixed(2);
     });
@@ -446,7 +503,7 @@ exports.getUserPortfolioValue = async (req) => {
       balances: wallet.balances,
       usdValue: wallet.totalUsdValue,
       lastUpdated: wallet.lastBalanceCheck,
-      isAutomatic: true // Artık tüm bakiyeler otomatik (blockchain'den)
+      isAutomatic: true, // Artık tüm bakiyeler otomatik (blockchain'den)
     });
   });
 
@@ -456,6 +513,7 @@ exports.getUserPortfolioValue = async (req) => {
     currencyTotals: Object.values(currencyTotals),
     portfolioBreakdown,
     lastUpdated: new Date(),
-    securityNote: "Tüm bakiyeler blockchain'den otomatik olarak güncellenmektedir"
+    securityNote:
+      "Tüm bakiyeler blockchain'den otomatik olarak güncellenmektedir",
   };
 };

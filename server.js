@@ -38,13 +38,14 @@ const corsOptions = {
   origin:
     process.env.NODE_ENV === "production"
       ? ["https://yourdomain.com"]
-      : ["http://localhost:3000", "http://localhost:3001"],
+      // DEĞİŞİKLİK: Vite sunucusunun IP adresini ve portunu ekleyin
+      : ["http://localhost:3000", "http://localhost:3001", "http://192.168.1.106:5173"],
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
-
+app.options('*', cors(corsOptions)); 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" })); // JSON payload limit
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));

@@ -6,6 +6,7 @@ const utils = require("../utils/index");
 
 exports.generateNonce = async (req, res) => {
   try {
+     console.log("✅ /nonce endpoint'ine istek geldi. Query:", req.query);
     const json = await walletService.generateNonce(req);
     res.status(StatusCodes.CREATED).json({
       ...baseResponse,
