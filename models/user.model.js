@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const config = require("../configs/index");
 
 const userSchema = new mongoose.Schema(
   {
@@ -25,9 +24,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       minlength: 8,
+      // Not: Güçlü şifre doğrulamasını frontend'de yapmak daha iyi bir kullanıcı
+      // deneyimi sunar, ancak burada olması da ek bir güvenlik katmanıdır.
       validate: {
         validator: function (password) {
-          // Güçlü şifre kontrolü: en az 1 büyük, 1 küçük, 1 rakam, 1 özel karakter
           return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/.test(
             password
           );
@@ -42,7 +42,6 @@ const userSchema = new mongoose.Schema(
       default: 'user',
       required: true,
     },
-    // ✅ YENİ: Email doğrulama durumu
     isVerified: {
       type: Boolean,
       default: false,
@@ -61,112 +60,91 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    // Access token alanı eklendi
+    // Sadece uzun ömürlü refresh token veritabanında saklanır.
     refreshToken: {
       type: String,
       default: null,
     },
-    // Token'ın ne zaman oluşturulduğunu takip etmek için
     tokenCreatedAt: {
       type: Date,
       default: null,
     },
-    // Şifre değişiklik tarihi
     passwordChangedAt: {
       type: Date,
       default: Date.now,
     },
-    // Hesap kilitlenme bilgileri
     loginAttempts: {
       type: Number,
       default: 0,
+      select: false, // Bu alanı normal sorgularda getirme
     },
-    lockUntil: Date,
+    lockUntil: {
+      type: Date,
+      select: false, // Bu alanı normal sorgularda getirme
+    },
   },
   {
     timestamps: true,
-    // Şifre alanını select'ten hariç tut
+    // Hassas verileri API yanıtlarından otomatik olarak temizle
     toJSON: {
       transform: function (doc, ret) {
         delete ret.password;
-        delete ret.accessToken;
         delete ret.verificationCode;
         delete ret.verificationCodeExpiresAt;
+        delete ret.refreshToken; // Refresh token'ı da yanıtlarda gönderme
+        delete ret.loginAttempts;
+        delete ret.lockUntil;
         return ret;
       },
     },
   }
 );
 
-// Şifre değişiklik middleware'i
+// Şifre her değiştiğinde hash'leyen ve tarihi güncelleyen middleware
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
 
-  // Şifre değişiklik tarihini güncelle
   this.passwordChangedAt = new Date();
-
-  // Şifreyi hashle
-  const salt = await bcrypt.genSalt(12); // Salt round'u artırdık
+  const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
   next();
 });
 
-// Access token oluşturma method'u
+// Access token oluşturma metodu
 userSchema.methods.generateAccessToken = function () {
-  const token = jwt.sign(
-    {
-      _id: this._id,
-      email: this.email,
-      name: this.name,
-      role: this.role, // Role bilgisini token'a ekle
-    },
-    config.jwt.secret, // Config'den güvenli şekilde al
-    { expiresIn: config.jwt.expiresIn }
-  );
+  const payload = {
+    _id: this._id,
+    email: this.email,
+    name: this.name,
+    role: this.role,
+  };
 
-  // Token'ı database'e kaydet
-  this.accessToken = token;
-  this.tokenCreatedAt = new Date();
+  // Not: Access token'lar kısa ömürlüdür ve veritabanına kaydedilmez.
+  // Her seferinde bu metotla oluşturulup istemciye gönderilir.
+  const token = jwt.sign(payload, process.env.SECRETKEY, {
+    expiresIn: process.env.EXPIRESIN,
+  });
 
   return token;
 };
 
-// Token'ı temizleme method'u (logout için)
-userSchema.methods.clearAccessToken = function () {
-  this.accessToken = null;
-  this.tokenCreatedAt = null;
-};
-
-// Password karşılaştırma method'u
+// Şifre karşılaştırma metodu
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Role kontrol method'ları
+// Rol kontrol metotları
 userSchema.methods.isAdmin = function () {
   return this.role === 'admin';
 };
 
-userSchema.methods.isCustomer = function () {
-  return this.role === 'customer';
-};
-
-userSchema.methods.isUser = function () {
-  return this.role === 'user';
-};
-
-userSchema.methods.canCreateCampaign = function () {
-  return this.role === 'admin' || this.role === 'customer';
-};
-
-// Hesap kilitleme kontrolü
+// Sanal (Virtual) alan: Hesabın kilitli olup olmadığını anlık hesaplar
 userSchema.virtual("isLocked").get(function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 });
 
-// Login denemeleri artırma
+// Başarısız giriş denemelerini yöneten metot
 userSchema.methods.incLoginAttempts = function () {
-  // Eğer lockUntil geçmişse, sıfırla
   if (this.lockUntil && this.lockUntil < Date.now()) {
     return this.updateOne({
       $unset: { lockUntil: 1 },
@@ -176,7 +154,6 @@ userSchema.methods.incLoginAttempts = function () {
 
   const updates = { $inc: { loginAttempts: 1 } };
 
-  // 5 başarısız denemeden sonra hesabı 30 dakika kilitle
   if (this.loginAttempts + 1 >= 5 && !this.isLocked) {
     updates.$set = { lockUntil: Date.now() + 30 * 60 * 1000 }; // 30 dakika
   }
@@ -184,10 +161,11 @@ userSchema.methods.incLoginAttempts = function () {
   return this.updateOne(updates);
 };
 
-// Başarılı login sonrası sıfırla
+// Başarılı giriş sonrası denemeleri sıfırlayan metot
 userSchema.methods.resetLoginAttempts = function () {
   return this.updateOne({
-    $unset: { loginAttempts: 1, lockUntil: 1 },
+    $set: { loginAttempts: 0 },
+    $unset: { lockUntil: 1 },
   });
 };
 

@@ -18,42 +18,48 @@ const walletSchema = new mongoose.Schema(
       trim: true,
       unique: true, // Her cüzdan adresi tüm sistemde benzersiz olmalı
     },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
     isAirdropAddress: {
       type: Boolean,
       default: false, // Bu cüzdanın airdrop için işaretlenip işaretlenmediği
     },
     // YENİ: Bakiye bilgileri (SADECE BLOCKCHAIN'DEN)
-    balances: [{
-      currency: {
-        type: String,
-        required: true,
-        trim: true,
-        uppercase: true // ETH, BTC, SOL vs.
+    balances: [
+      {
+        currency: {
+          type: String,
+          required: true,
+          trim: true,
+          uppercase: true, // ETH, BTC, SOL vs.
+        },
+        amount: {
+          type: String, // Precision için string
+          required: true,
+          default: "0",
+        },
+        usdValue: {
+          type: String, // USD karşılığı
+          default: "0",
+        },
+        lastUpdated: {
+          type: Date,
+          default: Date.now,
+        },
       },
-      amount: {
-        type: String, // Precision için string
-        required: true,
-        default: "0"
-      },
-      usdValue: {
-        type: String, // USD karşılığı
-        default: "0"
-      },
-      lastUpdated: {
-        type: Date,
-        default: Date.now
-      }
-    }],
+    ],
     // Son blockchain sorgusu tarihi
     lastBalanceCheck: {
       type: Date,
-      default: Date.now
+      default: Date.now,
     },
     // Toplam portföy değeri (USD) - SADECE BLOCKCHAIN'DEN HESAPLANAN
     totalUsdValue: {
       type: String,
-      default: "0"
-    }
+      default: "0",
+    },
   },
   {
     timestamps: true,

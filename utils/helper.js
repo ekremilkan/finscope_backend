@@ -1,30 +1,50 @@
 const jsonwebtoken = require("jsonwebtoken");
-const config = require("../configs");
 
-exports.createToken = (userId, userName) => {
-  const token = jsonwebtoken.sign({ userId, userName }, config.jwt.secret, {
-    expiresIn: config.jwt.expiresIn,
+/**
+ * Bir kullanıcı için yeni bir Access Token oluşturur.
+ * Anahtarı doğrudan process.env'den alarak tutarlılık sağlar.
+ */
+exports.createToken = (user) => {
+  const payload = { 
+    _id: user._id, 
+    email: user.email, 
+    name: user.name, 
+    role: user.role 
+  };
+  
+  // DİKKAT: Anahtar doğrudan process.env'den okunuyor.
+  const token = jsonwebtoken.sign(payload, process.env.SECRETKEY, {
+    expiresIn: process.env.EXPIRESIN,
   });
+
   return token;
 };
 
+/**
+ * Verilen Access Token'ı doğrular.
+ * Token geçerliyse payload'ını, geçersizse (imza hatası, süresi dolmuş vb.) null döndürür.
+ * Hata fırlatmaz, kararı çağrıldığı yere bırakır.
+ */
 exports.verifyToken = (token) => {
-  const isVerify = { decodedToken: null };
   try {
-    const decodedToken = jsonwebtoken.verify(token, config.jwt.secret);
-    return isVerify.decodedToken = decodedToken;
+    // DİKKAT: Doğrulama anahtarı da doğrudan process.env'den okunuyor.
+    const decoded = jsonwebtoken.verify(token, process.env.SECRETKEY);
+    return decoded;
   } catch (error) {
-    console.log("helper'da hata oldu verify tokende");
-    throw new Error("Token validate sırasında hata oluştu");
+    // Token doğrulanamadığında hata logla ama null döndür.
+    console.error("verifyToken hatası:", error.message);
+    return null;
   }
 };
 
+/**
+ * Bir kullanıcı için yeni bir Refresh Token oluşturur.
+ */
 exports.createRefreshToken = (user) => {
+  const payload = { _id: user._id, email: user.email };
+
   const refreshToken = jsonwebtoken.sign(
-    {
-      _id: user._id,
-      email: user.email,
-    },
+    payload,
     process.env.REFRESH_SECRETKEY,
     { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN }
   );
@@ -32,14 +52,15 @@ exports.createRefreshToken = (user) => {
 };
 
 /**
- * Refresh token doğrulama fonksiyonu
+ * Verilen Refresh Token'ı doğrular.
+ * Token geçerliyse payload'ını, geçersizse hata fırlatır.
  */
 exports.verifyRefreshToken = (refreshToken) => {
   try {
-    const decodedToken = jsonwebtoken.verify(refreshToken, process.env.REFRESH_SECRETKEY);
-    return decodedToken;
+    const decoded = jsonwebtoken.verify(refreshToken, process.env.REFRESH_SECRETKEY);
+    return decoded;
   } catch (error) {
-    console.log("Refresh token doğrulama hatası:", error.message);
+    console.error("Refresh token doğrulama hatası:", error.message);
     throw new Error("Refresh token geçersiz veya süresi dolmuş");
   }
 };

@@ -1,89 +1,53 @@
-const utils = require("../utils/index");
 const { StatusCodes } = require("http-status-codes");
-const consts = require("../consts/index");
 const User = require("../models/user.model");
+const utils = require("../utils/index"); // Helper dosyanız
 
 module.exports = async (req, res, next) => {
   try {
-    // Public route kontrolü
-    let isPublicRoute = consts.general.ROUTES.find((route) => {
-      return req.url.includes(route);
-    });
-    
-    if (isPublicRoute) {
-      return next();
-    }
-    
-    // Authorization header kontrolü
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(StatusCodes.UNAUTHORIZED).json({
-        error: true,
-        success: false,
-        message: "Yetkilendirme token'ı gerekli",
-        code: StatusCodes.UNAUTHORIZED
-      });
+      return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Yetkilendirme token'ı gerekli" });
     }
     
-    // Token'ı çıkar
     const token = authHeader.split(" ")[1];
     if (!token) {
-      return res.status(StatusCodes.UNAUTHORIZED).json({
-        error: true,
-        success: false,
-        message: "Token bulunamadı",
-        code: StatusCodes.UNAUTHORIZED
-      });
+      return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Token bulunamadı" });
     }
     
-    // Token'ı doğrula
+    // Helper'daki verifyToken fonksiyonunu çağır
     const decodedToken = utils.helper.verifyToken(token);
-    if (!decodedToken) {
-      return res.status(StatusCodes.UNAUTHORIZED).json({
-        error: true,
-        success: false,
-        message: "Geçersiz token",
-        code: StatusCodes.UNAUTHORIZED
-      });
+    
+    if (!decodedToken || !decodedToken._id) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Geçersiz veya süresi dolmuş token" });
     }
     
-    // Kullanıcıyı veritabanından kontrol et
-    const user = await User.findById(decodedToken._id).select('-password');
-    if (!user) {
-      return res.status(StatusCodes.UNAUTHORIZED).json({
-        error: true,
-        success: false,
-        message: "Kullanıcı bulunamadı",
-        code: StatusCodes.UNAUTHORIZED
-      });
+    // --- YENİ VE DAHA SAĞLAM YAPI ---
+    // req.user objesini, sonraki adımlarda ihtiyaç duyulacak şekilde
+    // net ve tutarlı bir yapıda oluşturalım.
+    req.user = {
+      userId: decodedToken._id, // En önemlisi: userId'yi ekle
+      email: decodedToken.email,
+      name: decodedToken.name,
+      role: decodedToken.role,
+    };
+    // ---------------------------------
+
+    // Opsiyonel ama önerilen: Kullanıcının hala DB'de var olduğunu ve kilitli olmadığını kontrol et
+    const userInDb = await User.findById(req.user.userId);
+    if (!userInDb) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Token'a ait kullanıcı bulunamadı" });
     }
-   
-    // Hesap kilitli mi kontrol et
-    if (user.isLocked) {
-      return res.status(StatusCodes.LOCKED).json({
-        error: true,
-        success: false,
-        message: "Hesap geçici olarak kilitlenmiştir",
-        code: StatusCodes.LOCKED
-      });
+    if (userInDb.isLocked) {
+      return res.status(StatusCodes.LOCKED).json({ message: "Hesap geçici olarak kilitlenmiştir" });
     }
-    
-    // Role bilgisini token'dan al ve kullanıcı bilgisine ekle
-    user.role = decodedToken.role || user.role;
-    
-    // Kullanıcı bilgilerini request'e ekle
-    req.user = user;
-    req.token = token;
-    
+
     next();
     
   } catch (error) {
-    console.error('Auth Middleware Error:', error.message);
+    console.error('💥 Auth Middleware Hatası:', error.message);
     return res.status(StatusCodes.UNAUTHORIZED).json({
-      error: true,
-      success: false,
-      message: "Yetkilendirme hatası",
-      code: StatusCodes.UNAUTHORIZED
+      message: "Yetkilendirme hatası oluştu.",
+      error: error.message
     });
   }
 };
