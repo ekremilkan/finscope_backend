@@ -15,8 +15,8 @@ const ROUTER_PREFIX = require("./consts/router.prefix.consts");
 const app = express();
 
 // NODE_ENV kontrolü
-const isDevelopment = process.env.NODE_ENV === 'development';
-console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+const isDevelopment = process.env.NODE_ENV === "development";
+console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
 
 // Güvenlik middleware'leri
 app.use(
@@ -35,26 +35,22 @@ app.use(
 
 // CORS configuration
 const corsOptions = {
-  origin:
-    process.env.NODE_ENV === "production"
-      ? ["https://yourdomain.com"]
-      // DEĞİŞİKLİK: Vite sunucusunun IP adresini ve portunu ekleyin
-      : ["http://localhost:3000", "http://localhost:3001", "http://192.168.1.106:5173"],
+  origin: "*",
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
-app.options('*', cors(corsOptions)); 
+
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" })); // JSON payload limit
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Static dosya servisi (uploads klasörü için)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.get(`${config.app.prefix}/health`, (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: Date.now() });
+  res.status(200).json({ status: "ok", timestamp: Date.now() });
 });
 
 // NoSQL injection koruması
@@ -85,7 +81,11 @@ db.mongooseConnection.connectMongoDB().then(() => {
     console.log(`✅ Server ${config.app.port} portunda çalışıyor`);
     console.log(`🔗 API URL: http://localhost:${config.app.port}`);
     console.log(`🛡️  Güvenlik önlemleri aktif`);
-    console.log(`🔒 Rate limiting: ${isDevelopment ? 'Devre dışı (Development)' : 'Aktif'}`);
+    console.log(
+      `🔒 Rate limiting: ${
+        isDevelopment ? "Devre dışı (Development)" : "Aktif"
+      }`
+    );
     console.log(`🚫 NoSQL Injection koruması: Aktif`);
     console.log(`🛡️  Helmet güvenlik headers: Aktif`);
     console.log(`📊 Kampanya ve Sorular API'leri aktif`);
