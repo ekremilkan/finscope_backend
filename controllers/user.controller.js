@@ -8,7 +8,7 @@ exports.register = async (req, res) => {
     res.status(StatusCodes.CREATED).json({
       ...baseResponse,
       data,
-      message: "Kullanıcı başarıyla oluşturuldu",
+      message: "User created successfully",
       code: StatusCodes.CREATED,
     });
   } catch (error) {
@@ -28,8 +28,8 @@ exports.login = async (req, res) => {
     
     // ✅ YENİ: isVerified durumuna göre mesaj ayarla
     const message = data.isVerified 
-      ? "Giriş başarılı" 
-      : "Doğrulama kodu e-posta adresinize gönderildi";
+      ? "Login successful" 
+      : "Verification code sent to your email address";
     
     res.status(StatusCodes.OK).json({
       ...baseResponse,
@@ -74,8 +74,8 @@ exports.verifyLogin = async (req, res) => {
     
     // ✅ YENİ: isVerified durumuna göre mesaj ayarla
     const message = data.isVerified 
-      ? "Doğrulama başarılı. Giriş yapıldı." 
-      : "Doğrulama başarılı";
+      ? "Verification successful. Login completed." 
+      : "Verification successful";
     
     res.status(StatusCodes.OK).json({
       ...baseResponse,
@@ -100,7 +100,7 @@ exports.logout = async (req, res) => {
     res.status(StatusCodes.OK).json({
       ...baseResponse,
       data,
-      message: "Çıkış başarılı",
+      message: "Logout successful",
       code: StatusCodes.OK,
     });
   } catch (error) {
@@ -118,7 +118,7 @@ exports.getProfile = async (req, res) => {
   // burada veritabanına tekrar gitmemize gerek yok.
   // Direkt olarak req.user'dan bilgiyi alıp gönderebiliriz.
   res.status(StatusCodes.OK).json({
-    message: "Profil bilgileri başarıyla getirildi.",
+    message: "Profile information retrieved successfully.",
     data: req.user,
   });
 };
@@ -214,7 +214,7 @@ exports.getUserById = async (req, res) => {
       ...baseResponse,
       data: data,
       timestamp: new Date(),
-      message: "Kullanıcı başarıyla getirildi",
+      message: "User retrieved successfully",
       code: StatusCodes.CREATED,
     });
   } catch (error) {
@@ -223,7 +223,7 @@ exports.getUserById = async (req, res) => {
       success: false,
       error: true,
       timestamp: new Date(),
-      message: "Hata oluştu",
+      message: "An error occurred",
       errorMessage: error.message,
       code: StatusCodes.INTERNAL_SERVER_ERROR,
     });
@@ -237,7 +237,7 @@ exports.getUserByName = async (req, res) => {
       ...baseResponse,
       data: data,
       timestamp: new Date(),
-      message: "Kullanıcı başarıyla getirildi",
+      message: "User retrieved successfully",
       code: StatusCodes.CREATED,
     });
   } catch (error) {
@@ -246,7 +246,7 @@ exports.getUserByName = async (req, res) => {
       success: false,
       error: true,
       timestamp: new Date(),
-      message: "Hata oluştu",
+      message: "An error occurred",
       errorMessage: error.message,
       code: StatusCodes.INTERNAL_SERVER_ERROR,
     });

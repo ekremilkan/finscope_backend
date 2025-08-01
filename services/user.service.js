@@ -9,7 +9,7 @@ exports.register = async (req) => {
   // E-posta kontrolü
   const existingUser = await User.findOne({ email });
   if (existingUser) {
-    const err = new Error("Bu email adresi zaten kullanımda.");
+    const err = new Error("This email address is already in use.");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
@@ -35,13 +35,13 @@ exports.login = async (req) => {
     "+password +loginAttempts +lockUntil"
   );
   if (!user) {
-    const err = new Error("Geçersiz e-posta veya şifre.");
+    const err = new Error("Invalid email or password.");
     err.statusCode = StatusCodes.UNAUTHORIZED;
     throw err;
   }
 
   if (user.isLocked) {
-    const err = new Error("Hesap geçici olarak kilitlenmiştir.");
+    const err = new Error("Account is temporarily locked.");
     err.statusCode = StatusCodes.LOCKED;
     throw err;
   }
@@ -49,7 +49,7 @@ exports.login = async (req) => {
   const isMatch = await user.comparePassword(password);
   if (!isMatch) {
     await user.incLoginAttempts();
-    const err = new Error("Geçersiz e-posta veya şifre.");
+    const err = new Error("Invalid email or password.");
     err.statusCode = StatusCodes.UNAUTHORIZED;
     throw err;
   }
@@ -75,7 +75,7 @@ exports.login = async (req) => {
       token, 
       refreshToken,
       isVerified: true,
-      message: "Giriş başarılı" 
+      message: "Login successful" 
     };
   } else {
     // Kullanıcı henüz doğrulanmamış, verification code gönder
@@ -101,7 +101,7 @@ exports.login = async (req) => {
 
     // Doğrulama gerektiğini belirten yanıt dön
     return { 
-      message: "Doğrulama kodu e-posta adresinize gönderildi.",
+      message: "Verification code sent to your email address.",
       isVerified: false,
       email: user.email
     };
@@ -155,7 +155,7 @@ exports.verifyLogin = async (req) => {
 
   // Kod yanlış veya kullanıcı bulunamadı
   if (!user) {
-    const err = new Error("Geçersiz doğrulama kodu veya e-posta.");
+    const err = new Error("Invalid verification code or email.");
     err.statusCode = StatusCodes.UNAUTHORIZED;
     throw err;
   }
@@ -168,7 +168,7 @@ exports.verifyLogin = async (req) => {
     await user.save();
 
     const err = new Error(
-      "Doğrulama kodunun süresi dolmuş. Lütfen tekrar giriş yapın."
+      "Verification code has expired. Please login again."
     );
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
@@ -203,7 +203,7 @@ exports.verifyLogin = async (req) => {
     token, 
     refreshToken,
     isVerified: true,
-    message: "Doğrulama başarılı. Giriş yapıldı." 
+    message: "Verification successful. Login completed." 
   };
 };
 
@@ -215,7 +215,7 @@ exports.logout = async (req) => {
     user.refreshToken = null;
     await user.save();
   }
-  return { message: "Başarıyla çıkış yapıldı" };
+  return { message: "Logout successful" };
 };
 
 exports.getUserById = async (req) => {
@@ -223,7 +223,7 @@ exports.getUserById = async (req) => {
     const { userId } = req.params;
     const user = await User.findById(userId);
     if (!user) {
-      throw new Error("Kullanıcı bulunamadı");
+      throw new Error("User not found");
     }
     return user;
   } catch (error) {
@@ -236,7 +236,7 @@ exports.getUserByName = async (req) => {
     const { name } = req.params;
     const user = await User.find({ name: name });
     if (!user) {
-      throw new Error("Kullanıcı bulunamadı");
+      throw new Error("User not found");
     }
     return user;
   } catch (error) {
@@ -252,7 +252,7 @@ exports.forgotPassword = async (req) => {
   const user = await User.findOne({ email });
 
   if (!user) {
-    const err = new Error("Bu e-posta adresine ait bir kullanıcı bulunamadı.");
+    const err = new Error("No user found with this email address.");
     err.statusCode = StatusCodes.NOT_FOUND;
     throw err;
   }
@@ -267,11 +267,11 @@ exports.forgotPassword = async (req) => {
   try {
     await utils.email.sendVerificationCode(user.email, code);
   } catch (error) {
-    console.error("Kod gönderilemedi:", error);
+    console.error("Code could not be sent:", error);
   }
 
   return {
-    message: "Şifre sıfırlama kodu e-posta adresinize gönderildi.",
+    message: "Password reset code sent to your email address.",
     expiresAt: expiresAt.toISOString(),
   };
 };
@@ -287,12 +287,12 @@ exports.verifyResetCode = async (req) => {
     !user.verificationCodeExpiresAt ||
     user.verificationCodeExpiresAt < new Date()
   ) {
-    const err = new Error("Kod geçersiz veya süresi dolmuş.");
+    const err = new Error("Code is invalid or expired.");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
 
-  return { message: "Kod doğrulandı." };
+  return { message: "Code verified." };
 };
 
 exports.resetPassword = async (req) => {
@@ -306,7 +306,7 @@ exports.resetPassword = async (req) => {
     !user.verificationCodeExpiresAt ||
     user.verificationCodeExpiresAt < new Date()
   ) {
-    const err = new Error("Kod geçersiz veya süresi dolmuş.");
+    const err = new Error("Code is invalid or expired.");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
@@ -316,7 +316,7 @@ exports.resetPassword = async (req) => {
   user.verificationCodeExpiresAt = null;
   await user.save();
 
-  return { message: "Şifreniz başarıyla sıfırlandı." };
+  return { message: "Password reset successfully." };
 };
 
 /**
@@ -326,7 +326,7 @@ exports.refreshAccessToken = async (req) => {
   const { refreshToken } = req.body;
 
   if (!refreshToken) {
-    const err = new Error("Refresh token gerekli.");
+    const err = new Error("Refresh token required.");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
@@ -338,21 +338,21 @@ exports.refreshAccessToken = async (req) => {
     // Kullanıcıyı database'den bul
     const user = await User.findById(decodedToken._id);
     if (!user) {
-      const err = new Error("Kullanıcı bulunamadı.");
+      const err = new Error("User not found.");
       err.statusCode = StatusCodes.NOT_FOUND;
       throw err;
     }
 
     // Database'deki refresh token ile gelen token'ı karşılaştır
     if (user.refreshToken !== refreshToken) {
-      const err = new Error("Geçersiz refresh token.");
+      const err = new Error("Invalid refresh token.");
       err.statusCode = StatusCodes.UNAUTHORIZED;
       throw err;
     }
 
     // Hesap kilitli mi kontrol et
     if (user.isLocked) {
-      const err = new Error("Hesap geçici olarak kilitlenmiştir.");
+      const err = new Error("Account is temporarily locked.");
       err.statusCode = StatusCodes.LOCKED;
       throw err;
     }
@@ -374,14 +374,14 @@ exports.refreshAccessToken = async (req) => {
       user: userResponse, 
       token: newAccessToken, 
       refreshToken: newRefreshToken,
-      message: "Token başarıyla yenilendi" 
+      message: "Token refreshed successfully" 
     };
 
   } catch (error) {
     if (error.statusCode) {
       throw error;
     }
-    const err = new Error("Token yenileme sırasında hata oluştu.");
+    const err = new Error("Error occurred while refreshing token.");
     err.statusCode = StatusCodes.UNAUTHORIZED;
     throw err;
   }

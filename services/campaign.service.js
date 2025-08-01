@@ -16,7 +16,7 @@ const updateCampaignQuestionCount = async (campaignId) => {
 // ✅ YENİ: Quiz tamamlama
 exports.completeQuiz = async (req) => {
   const { id: campaignId } = req.params;
-  const userId = req.user._id;
+  const userId = req.user.userId;
   const { totalTimeSpent, score, questionsAnswered, totalQuestions } = req.body;
 
   // UserProgress kontrolü
@@ -92,7 +92,7 @@ exports.completeQuiz = async (req) => {
 // ✅ YENİ: Kullanıcının kampanya progress'ini getir
 exports.getUserProgress = async (req) => {
   const { id: campaignId } = req.params;
-  const userId = req.user._id;
+  const userId = req.user.userId;
 
   const userProgress = await UserProgress.findOne({ userId, campaignId });
   
@@ -123,7 +123,7 @@ exports.getUserProgress = async (req) => {
 // ✅ YENİ: Kampanyaya katıl
 exports.joinCampaign = async (req) => {
   const { id: campaignId } = req.params;
-  const userId = req.user._id;
+  const userId = req.user.userId;
 
   // Kampanya kontrolü
   const campaign = await Campaign.findById(campaignId);
@@ -222,7 +222,7 @@ exports.joinCampaign = async (req) => {
 // ✅ YENİ: Progress güncelle
 exports.updateProgress = async (req) => {
   const { id: campaignId } = req.params;
-  const userId = req.user._id;
+  const userId = req.user.userId;
   const { questionId, selectedAnswer, isCorrect, timeSpent, completed } = req.body;
 
   // UserProgress kontrolü
@@ -306,7 +306,7 @@ exports.create = async (req) => {
     estimatedDuration
   } = req.body;
   
-  const createdUserId = req.user._id;
+  const createdUserId = req.user.userId;
 
   const campaign = new Campaign({ 
     title, 
@@ -366,7 +366,7 @@ exports.getAll = async (req) => {
 
 exports.getById = async (req) => {
   const { id } = req.params;
-  const userId = req.user._id;
+  const userId = req.user.userId;
   
   const campaign = await Campaign.findById(id)
     .populate("createdUserId", "name email");
@@ -392,7 +392,7 @@ exports.getById = async (req) => {
 
 exports.update = async (req) => {
   const { id } = req.params;
-  const createdUserId = req.user._id;
+  const createdUserId = req.user.userId;
   const userRole = req.user.role;
   
   // Admin ise tüm kampanyaları güncelleyebilir, değilse sadece kendi kampanyasını
@@ -419,7 +419,7 @@ exports.update = async (req) => {
 };
 
 exports.getByCustomer = async (req) => {
-  const createdUserId = req.user._id;
+  const createdUserId = req.user.userId;
   const campaigns = await Campaign.find({ createdUserId })
     .populate("createdUserId", "name email")
     .sort({ createdAt: -1 });
@@ -429,7 +429,7 @@ exports.getByCustomer = async (req) => {
 // Customer için silme isteği (isActive false yapar)
 exports.requestDelete = async (req) => {
   const { id } = req.params;
-  const createdUserId = req.user._id;
+  const createdUserId = req.user.userId;
   const userRole = req.user.role;
 
   // Admin ise direkt silme yapabilir, customer ise sadece isActive false yapar
