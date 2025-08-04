@@ -117,3 +117,29 @@ exports.deleteWallet = async (req, res) => {
     });
   }
 };
+
+exports.updateWalletNetwork = async (req, res) => {
+  try {
+    console.log("🛠️ /wallet/:address/network endpoint'ine istek geldi. Params:", req.params, "Body:", req.body);
+
+    const json = await walletService.updateWalletNetwork(req);
+
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      code: StatusCodes.OK,
+      data: json,
+      message: "Cüzdan ağı başarıyla güncellendi.",
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error("❌ Cüzdan ağı güncellenirken hata:", error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message || "Bir hata oluştu.",
+      timestamp: new Date(),
+      code: StatusCodes.INTERNAL_SERVER_ERROR,
+    });
+  }
+};

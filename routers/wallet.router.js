@@ -9,5 +9,7 @@ router.post("/verify", authMiddleware,walletController.verifySignatureAndConnect
 router.get('/getWalletStatus', authMiddleware, walletController.getWalletStatus);
 router.get('/', authMiddleware, walletController.getUserWallets);
 router.delete('/:address', authMiddleware, walletController.deleteWallet);
+router.patch('/:address/network', authMiddleware, walletController.updateWalletNetwork);
+
 
 module.exports = { wallet: router };

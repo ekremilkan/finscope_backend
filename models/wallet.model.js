@@ -10,7 +10,16 @@ const walletSchema = new mongoose.Schema(
     network: {
       type: String,
       required: true,
-      enum: ["Ethereum", "Solana", "Tron", "BNBChain", "SUI", "Base"], // Desteklenen ağlar
+      enum: ["Ethereum", 
+        "BNB Smart Chain", // "BNBChain" yerine wagmi'nin kullandığı isim
+        "Polygon",         // Eklendi
+        "Arbitrum One",    // Eklendi
+        "OP Mainnet",      // Eklendi
+        "Base",
+        // EVM dışı cüzdanlar
+        "Solana", 
+        "Tron", 
+        "SUI"], // Desteklenen ağlar
     },
     address: {
       type: String,

@@ -171,3 +171,38 @@ exports.deleteWallet = async (req) => {
     session.endSession();
   }
 };
+
+exports.updateWalletNetwork = async (req) => {
+  try {
+    const { userId } = req.user;
+    const { address } = req.params;
+    const { network } = req.body;
+
+    
+    if (!network) {
+      throw new Error("Yeni ağ bilgisi ('network') zorunludur.");
+    }
+
+    const updatedWallet = await Wallet.findOneAndUpdate(
+      { user: userId, address: address.toLowerCase() },
+      { $set: { network: network } }, 
+      { new: true } 
+    );
+
+
+    if (!updatedWallet) {
+      throw new Error("Cüzdan bulunamadı veya bu cüzdan size ait değil.");
+    }
+
+  
+    return {
+      message: "Cüzdanın ağı başarıyla güncellendi.",
+      wallet: updatedWallet,
+    };
+    
+  } catch (error) {
+    
+    console.error("updateWalletNetwork service error:", error);
+    throw new Error("Cüzdan ağı güncellenirken bir hata oluştu.");
+  }
+};
