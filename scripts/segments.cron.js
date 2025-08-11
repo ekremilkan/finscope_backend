@@ -19,6 +19,7 @@ async function runOnce() {
 if (process.env.RUN_ONCE === "true") {
   runOnce().then(() => process.exit(0));
 } else {
+  
   console.log(`[segments.cron] Planlandı: ${CRON_EXPR}`);
   cron.schedule(CRON_EXPR, runOnce, { timezone: process.env.CRON_TZ || "UTC" });
-} 
+}
