@@ -12,7 +12,9 @@
     "test:coverage": "jest --coverage",
     "test:unit": "jest tests/unit",
     "test:integration": "jest tests/integration",
-    "test:db": "node tests/db-connection-test.js"
+    "test:db": "node tests/db-connection-test.js",
+    "segments:recompute": "node scripts/segments.recompute.js --chain=ethereum --period=90d --mode=zscore",
+    "segments:cron": "node scripts/segments.cron.js"
   },
   "keywords": [
     "fintech",
@@ -64,7 +66,8 @@
     "nodemailer": "^7.0.3",
     "nodemon": "^3.1.10",
     "tronweb": "^5.3.2",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "node-cron": "^3.0.3"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
