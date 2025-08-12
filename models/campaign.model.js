@@ -17,6 +17,35 @@ const campaignSchema = new mongoose.Schema({
     default: '',
     maxlength: 2000,
   },
+
+    // Kampanyaya ait soruların ID'leri
+  content: [
+    {
+      itemImage: {
+      type: String,
+      default: '',
+      },
+      itemVideo:{
+        type: String,
+        default:'',
+      },
+      itemTitle: {
+        type: String,
+        default: '',
+        maxlength: 500,
+      },
+      itemDescription: {
+        type: String,
+        default: '',
+        maxlength: 500,
+      },
+        itemIndex: {
+        type: Number,
+        default: 1,
+        min: 0,
+      },
+    }
+  ],
   reward: {
     type: Number,
     required: true,
@@ -44,11 +73,6 @@ const campaignSchema = new mongoose.Schema({
     default: 'education',
     enum: ['education', 'technology', 'health', 'finance', 'sports', 'entertainment', 'other'],
   },
-  difficulty: {
-    type: String,
-    enum: ['Beginner', 'Intermediate', 'Advanced'],
-    default: 'Beginner',
-  },
   startDate: {
     type: Date,
     required: true,
@@ -75,14 +99,8 @@ const campaignSchema = new mongoose.Schema({
     default: []
   }],
   images: {
-    type: [String], // Resim URL'leri dizisi
-    default: [],
-    validate: {
-      validator: function(v) {
-        return v.length <= 10; // Maksimum 10 resim
-      },
-      message: 'En fazla 10 resim eklenebilir'
-    }
+    type: String, // Resim URL'leri dizisi
+    default: '',
   },
   // ✅ YENİ: Video URL'i (eski videoLink yerine)
   videoUrl: {
