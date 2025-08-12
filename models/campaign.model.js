@@ -11,13 +11,6 @@ const campaignSchema = new mongoose.Schema({
     required: true,
     maxlength: 500,
   },
-  // ✅ YENİ: Detaylı kampanya içeriği
-  content: {
-    type: String,
-    default: '',
-    maxlength: 2000,
-  },
-
     // Kampanyaya ait soruların ID'leri
   content: [
     {
@@ -126,48 +119,14 @@ const campaignSchema = new mongoose.Schema({
     ref: 'Question',
     default: []
   }],
-  images: {
+  image: {
     type: String, // Resim URL'leri dizisi
     default: '',
   },
   // ✅ YENİ: Video URL'i (eski videoLink yerine)
   videoUrl: {
     type: String,
-    default: null,
-    validate: {
-      validator: function(v) {
-        if (!v) return true; // Boş olabilir
-        // YouTube, Vimeo, veya diğer video platformları için basit URL kontrolü
-        const urlPattern = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|facebook\.com|instagram\.com)\/.+/;
-        return urlPattern.test(v);
-      },
-      message: 'Geçerli bir video linki giriniz (YouTube, Vimeo, vb.)'
-    }
-  },
-  // ✅ YENİ: Image URLs (eski images yerine)
-  imageUrls: {
-    type: [String],
-    default: [],
-    validate: {
-      validator: function(v) {
-        return v.length <= 10; // Maksimum 10 resim
-      },
-      message: 'En fazla 10 resim eklenebilir'
-    }
-  },
-  // Geriye uyumluluk için eski videoLink alanını koru
-  videoLink: {
-    type: String,
-    default: null,
-    validate: {
-      validator: function(v) {
-        if (!v) return true; // Boş olabilir
-        // YouTube, Vimeo, veya diğer video platformları için basit URL kontrolü
-        const urlPattern = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|facebook\.com|instagram\.com)\/.+/;
-        return urlPattern.test(v);
-      },
-      message: 'Geçerli bir video linki giriniz (YouTube, Vimeo, vb.)'
-    }
+    default: "",
   },
   tags: {
     type: [String],
@@ -186,6 +145,10 @@ const campaignSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true,
+  },
+  isAdminAccept: {
+    type: Boolean,
+    default: false,
   },
   createdAt: {
     type: Date,
@@ -212,15 +175,6 @@ campaignSchema.pre('save', function(next) {
     this.status = 'upcoming';
   } else {
     this.status = 'active';
-  }
-  
-  // ✅ YENİ: Participants validasyonu
-  if (this.participants > this.maxParticipants) {
-    this.participants = this.maxParticipants;
-  }
-  
-  if (this.currentParticipants > this.participants) {
-    this.currentParticipants = this.participants;
   }
   
   next();
