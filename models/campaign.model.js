@@ -52,17 +52,49 @@ const campaignSchema = new mongoose.Schema({
     min: 0,
   },
   maxParticipants: {
-    A: Number,
-    B: Number,
-    C: Number,
-    D: Number
+    A: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    B: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    C: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    D: {
+      type: Number,
+      default: 0,
+      min: 0,
+    }
   },
   // ✅ YENİ: Mevcut katılımcı sayısı
   currentParticipants: {
-    A: Number,
-    B: Number,
-    C: Number,
-    D: Number
+    A: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    B: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    C: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    D: {
+      type: Number,
+      default: 0,
+      min: 0,
+    }
   },
   category: {
     type: String,
