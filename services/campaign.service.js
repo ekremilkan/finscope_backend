@@ -1,6 +1,7 @@
 const Campaign = require("../models/campaign.model");
 const UserProgress = require("../models/userProgress.model");
 const CampaignParticipation = require("../models/campaignParticipation.model");
+const UserSegment = require("../models/userSegment.model");
 const { StatusCodes } = require("http-status-codes");
 
 // Kampanyanın soru sayısını güncelle
@@ -118,7 +119,6 @@ exports.getUserProgress = async (req) => {
 exports.joinCampaign = async (req) => {
   const { id: campaignId } = req.params;
   const userId = req.user.userId;
-  const userSegment = req.user.segment; // A/B/C/D segment
 
   const campaign = await Campaign.findById(campaignId);
   if (!campaign) {
@@ -140,8 +140,16 @@ exports.joinCampaign = async (req) => {
     throw err;
   }
 
+  // Kullanıcı segmentini veritabanından al (UserSegment)
+  const preferredWindow = `${process.env.SEGMENT_WINDOW_DAYS || 90}d`;
+  let segDoc = await UserSegment.findOne({ userId, chain: "ethereum", window: preferredWindow }).lean();
+  if (!segDoc) {
+    segDoc = await UserSegment.findOne({ userId, chain: "ethereum" }).sort({ asOf: -1 }).lean();
+  }
+  const userSegment = segDoc?.class;
+
   if (!['A','B','C','D'].includes(userSegment)) {
-    const err = new Error("Kullanıcı segmenti geçersiz.");
+    const err = new Error("Kullanıcı segmenti bulunamadı. Lütfen segment yeniden hesaplandıktan sonra deneyin.");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
