@@ -7,7 +7,7 @@ const { StatusCodes } = require("http-status-codes");
 const updateCampaignQuestionCount = async (campaignId) => {
   const campaign = await Campaign.findById(campaignId);
   if (!campaign) return 0;
-  
+
   const questionCount = campaign.questionIds.length;
   await Campaign.findByIdAndUpdate(campaignId, { questions: questionCount });
   return questionCount;
@@ -19,7 +19,6 @@ exports.completeQuiz = async (req) => {
   const userId = req.user.userId;
   const { totalTimeSpent, score, questionsAnswered, totalQuestions } = req.body;
 
-  // UserProgress kontrolü
   const userProgress = await UserProgress.findOne({ userId, campaignId });
   if (!userProgress || !userProgress.joined) {
     const err = new Error("Bu kampanyaya katılmamışsınız.");
@@ -27,28 +26,24 @@ exports.completeQuiz = async (req) => {
     throw err;
   }
 
-  // Quiz zaten tamamlanmış mı kontrolü
   if (userProgress.completed) {
     const err = new Error("Bu quiz zaten tamamlanmış.");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
 
-  // Score validasyonu (100% olacak - tüm sorular doğru)
   if (score !== 100) {
     const err = new Error("Quiz tamamlanması için tüm sorular doğru cevaplanmalıdır.");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
 
-  // Tüm sorular cevaplanmış mı kontrolü
   if (questionsAnswered !== totalQuestions) {
     const err = new Error("Quiz tamamlanması için tüm sorular cevaplanmalıdır.");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
 
-  // UserProgress güncelle
   const updatedUserProgress = await UserProgress.findByIdAndUpdate(
     userProgress._id,
     {
@@ -68,7 +63,6 @@ exports.completeQuiz = async (req) => {
     { new: true }
   );
 
-  // CampaignParticipation güncelle
   await CampaignParticipation.findOneAndUpdate(
     { userId, campaignId },
     {
@@ -95,7 +89,7 @@ exports.getUserProgress = async (req) => {
   const userId = req.user.userId;
 
   const userProgress = await UserProgress.findOne({ userId, campaignId });
-  
+
   if (!userProgress) {
     return {
       campaignId,
@@ -120,12 +114,12 @@ exports.getUserProgress = async (req) => {
   return userProgress;
 };
 
-// ✅ YENİ: Kampanyaya katıl
+// ✅ YENİ: Kampanyaya katıl (segment bazlı)
 exports.joinCampaign = async (req) => {
   const { id: campaignId } = req.params;
   const userId = req.user.userId;
+  const userSegment = req.user.segment; // A/B/C/D segment
 
-  // Kampanya kontrolü
   const campaign = await Campaign.findById(campaignId);
   if (!campaign) {
     const err = new Error("Kampanya bulunamadı.");
@@ -139,7 +133,6 @@ exports.joinCampaign = async (req) => {
     throw err;
   }
 
-  // Zaten katılmış mı kontrolü
   const existingProgress = await UserProgress.findOne({ userId, campaignId });
   if (existingProgress && existingProgress.joined) {
     const err = new Error("Bu kampanyaya zaten katılmışsınız.");
@@ -147,14 +140,20 @@ exports.joinCampaign = async (req) => {
     throw err;
   }
 
-  // Kontenjan kontrolü
-  if (campaign.participants >= campaign.maxParticipants) {
-    const err = new Error("Kampanya kontenjanı dolmuştur.");
+  if (!['A','B','C','D'].includes(userSegment)) {
+    const err = new Error("Kullanıcı segmenti geçersiz.");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
 
-  // UserProgress oluştur veya güncelle
+  const maxSeg = campaign.maxParticipants[userSegment] || 0;
+  const curSeg = campaign.currentParticipants[userSegment] || 0;
+  if (curSeg >= maxSeg) {
+    const err = new Error(`Kampanya ${userSegment} segmenti kontenjanı dolmuştur.`);
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
   let userProgress;
   if (existingProgress) {
     userProgress = await UserProgress.findByIdAndUpdate(
@@ -191,7 +190,6 @@ exports.joinCampaign = async (req) => {
     await userProgress.save();
   }
 
-  // CampaignParticipation oluştur
   const participation = new CampaignParticipation({
     campaignId,
     userId,
@@ -199,13 +197,9 @@ exports.joinCampaign = async (req) => {
   });
   await participation.save();
 
-  // Kampanya katılımcı sayısını artır
-  await Campaign.findByIdAndUpdate(campaignId, {
-    $inc: { participants: 1, currentParticipants: 1 }
-  });
-
-  // Güncellenmiş kampanya bilgilerini al
-  const updatedCampaign = await Campaign.findById(campaignId);
+  campaign.currentParticipants[userSegment] = (campaign.currentParticipants[userSegment] || 0) + 1;
+  campaign.participants = Object.values(campaign.currentParticipants).reduce((a,b)=>a+b,0);
+  await campaign.save();
 
   return {
     campaignId,
@@ -213,9 +207,9 @@ exports.joinCampaign = async (req) => {
     joined: true,
     joinedAt: userProgress.startedAt,
     message: "Kampanyaya başarıyla katıldınız",
-    participants: updatedCampaign.participants,
-    maxParticipants: updatedCampaign.maxParticipants,
-    remainingSlots: updatedCampaign.maxParticipants - updatedCampaign.participants
+    participants: campaign.participants,
+    maxParticipants: campaign.maxParticipants,
+    remainingSlots: maxSeg - campaign.currentParticipants[userSegment]
   };
 };
 
@@ -225,7 +219,6 @@ exports.updateProgress = async (req) => {
   const userId = req.user.userId;
   const { questionId, selectedAnswer, isCorrect, timeSpent, completed } = req.body;
 
-  // UserProgress kontrolü
   const userProgress = await UserProgress.findOne({ userId, campaignId });
   if (!userProgress || !userProgress.joined) {
     const err = new Error("Bu kampanyaya katılmamışsınız.");
@@ -233,11 +226,9 @@ exports.updateProgress = async (req) => {
     throw err;
   }
 
-  // Progress güncelleme
   const currentQuestion = userProgress.progress.currentQuestion;
   const totalQuestions = userProgress.progress.totalQuestions;
 
-  // Yeni progress hesaplama
   const newProgress = {
     currentQuestion: isCorrect ? currentQuestion + 1 : currentQuestion,
     totalQuestions,
@@ -249,11 +240,9 @@ exports.updateProgress = async (req) => {
     lastActivity: new Date()
   };
 
-  // Score hesaplama (100% olacak - tüm sorular doğru)
   const newScore = newProgress.correctAnswers === totalQuestions ? 100 : null;
   const newCompleted = newScore === 100;
 
-  // UserProgress güncelle
   const updatedUserProgress = await UserProgress.findByIdAndUpdate(
     userProgress._id,
     {
@@ -266,7 +255,6 @@ exports.updateProgress = async (req) => {
     { new: true }
   );
 
-  // CampaignParticipation güncelle
   await CampaignParticipation.findOneAndUpdate(
     { userId, campaignId },
     {
@@ -286,221 +274,57 @@ exports.updateProgress = async (req) => {
   };
 };
 
+// ✅ YENİ: Campaign create (isAdminAccept kontrolü)
 exports.create = async (req) => {
   const { 
-    title, 
-    description, 
-    content,
-    reward, 
-    maxParticipants, 
-    category, 
-    difficulty, 
-    startDate, 
-    endDate, 
-    questions, 
-    tags,
-    images,
-    imageUrls,
-    videoLink,
-    videoUrl,
-    estimatedDuration
+    title, description, content, reward, maxParticipants, category, difficulty,
+    startDate, endDate, questions, tags, images, imageUrls, videoLink, videoUrl, estimatedDuration
   } = req.body;
-  
+
   const createdUserId = req.user.userId;
+  const role = req.user.role; // admin veya customer
 
   const campaign = new Campaign({ 
-    title, 
-    description, 
-    content,
-    reward, 
-    maxParticipants, 
-    category, 
-    difficulty, 
-    startDate, 
-    endDate, 
-    questions, 
-    tags,
-    images: images || [],
-    imageUrls: imageUrls || [],
-    videoLink: videoLink || null,
-    videoUrl: videoUrl || null,
-    estimatedDuration: estimatedDuration || 15,
-    createdUserId 
+    title, description, content, reward, maxParticipants, category, difficulty, 
+    startDate, endDate, questions, tags, images: images || [], imageUrls: imageUrls || [],
+    videoLink: videoLink || null, videoUrl: videoUrl || null, estimatedDuration: estimatedDuration || 15,
+    createdUserId,
+    currentParticipants: {A:0,B:0,C:0,D:0},
+    isAdminAccept: role === "admin" ? true : false,
+    isActive: true
   });
-  
+
   await campaign.save();
   return campaign;
 };
 
+// ✅ YENİ: Tüm kampanyaları getir (rol bazlı filtreleme)
 exports.getAll = async (req) => {
-  const userId = req.user?._id;
+  const isAdmin = req.user?.role === "admin";
   
-  const campaigns = await Campaign.find()
-    .populate("createdUserId", "name email")
-    .sort({ createdAt: -1 });
-
-  // ✅ YENİ: User-specific data ekle
-  if (userId) {
-    const userProgresses = await UserProgress.find({ userId });
-    const progressMap = {};
-    
-    userProgresses.forEach(progress => {
-      progressMap[progress.campaignId.toString()] = progress;
-    });
-
-    return campaigns.map(campaign => {
-      const userProgress = progressMap[campaign._id.toString()];
-      return {
-        ...campaign.toObject(),
-        userJoined: userProgress?.joined || false,
-        userCompleted: userProgress?.completed || false,
-        userScore: userProgress?.score || null,
-        userTimeSpent: userProgress?.timeSpent || null,
-        userProgress: userProgress?.progress || null
-      };
-    });
+  let filter = {};
+  if (!isAdmin) {
+    filter = { isAdminAccept: true, isActive: true };
   }
 
+  const campaigns = await Campaign.find(filter);
   return campaigns;
 };
 
-exports.getById = async (req) => {
-  const { id } = req.params;
-  const userId = req.user.userId;
-  
-  const campaign = await Campaign.findById(id)
-    .populate("createdUserId", "name email");
-
-  if (!campaign) {
-    const err = new Error("Kampanya bulunamadı.");
-    err.statusCode = StatusCodes.NOT_FOUND;
-    throw err;
-  }
-
-  // ✅ YENİ: User-specific data ekle
-  const userProgress = await UserProgress.findOne({ userId, campaignId: id });
-  
-  return {
-    ...campaign.toObject(),
-    userJoined: userProgress?.joined || false,
-    userCompleted: userProgress?.completed || false,
-    userScore: userProgress?.score || null,
-    userTimeSpent: userProgress?.timeSpent || null,
-    userProgress: userProgress?.progress || null
-  };
-};
-
-exports.update = async (req) => {
-  const { id } = req.params;
-  const createdUserId = req.user.userId;
-  const userRole = req.user.role;
-  
-  // Admin ise tüm kampanyaları güncelleyebilir, değilse sadece kendi kampanyasını
-  let campaign;
-  if (userRole === 'admin') {
-    campaign = await Campaign.findById(id);
-  } else {
-    campaign = await Campaign.findOne({ _id: id, createdUserId });
-  }
-  
-  if (!campaign) {
-    const err = new Error("Bu kampanyayı güncelleme yetkiniz yok veya kampanya bulunamadı.");
-    err.statusCode = StatusCodes.FORBIDDEN;
-    throw err;
-  }
-
-  const updatedCampaign = await Campaign.findByIdAndUpdate(
-    id, 
-    req.body, 
-    { new: true, runValidators: true }
-  ).populate("createdUserId", "name email");
-  
-  return updatedCampaign;
-};
-
+// ✅ YENİ: Müşteriye ait kampanyaları getir (rol bazlı filtreleme)
 exports.getByCustomer = async (req) => {
-  const createdUserId = req.user.userId;
-  const campaigns = await Campaign.find({ createdUserId })
-    .populate("createdUserId", "name email")
-    .sort({ createdAt: -1 });
+  const customerId = req.user.userId;
+  const isAdmin = req.user.role === "admin";
+
+  let filter = { createdUserId: customerId };
+  if (!isAdmin) {
+    filter.isAdminAccept = true;
+    filter.isActive = true;
+  }
+
+  const campaigns = await Campaign.find(filter);
   return campaigns;
 };
 
-// Customer için silme isteği (isActive false yapar)
-exports.requestDelete = async (req) => {
-  const { id } = req.params;
-  const createdUserId = req.user.userId;
-  const userRole = req.user.role;
-
-  // Admin ise direkt silme yapabilir, customer ise sadece isActive false yapar
-  if (userRole === 'admin') {
-    await Campaign.findByIdAndDelete(id);
-    return { message: "Kampanya silindi." };
-  } else {
-    // Customer sadece kendi kampanyasını silme isteği yapabilir
-    const campaign = await Campaign.findOne({ _id: id, createdUserId });
-    
-    if (!campaign) {
-      const err = new Error("Bu kampanyayı silme yetkiniz yok veya kampanya bulunamadı.");
-      err.statusCode = StatusCodes.FORBIDDEN;
-      throw err;
-    }
-
-    // isActive false yap
-    await Campaign.findByIdAndUpdate(id, { isActive: false });
-    return { 
-      message: "Kampanya silme isteği gönderildi. Admin onayı bekleniyor.",
-      campaignId: id
-    };
-  }
-};
-
-// Sadece admin için gerçek silme işlemi
-exports.remove = async (req) => {
-  const { id } = req.params;
-  const userRole = req.user.role;
-
-  // Sadece admin gerçek silme yapabilir
-  if (userRole !== 'admin') {
-    const err = new Error("Bu işlem için admin yetkisi gereklidir.");
-    err.statusCode = StatusCodes.FORBIDDEN;
-    throw err;
-  }
-
-  const campaign = await Campaign.findById(id);
-  if (!campaign) {
-    const err = new Error("Kampanya bulunamadı.");
-    err.statusCode = StatusCodes.NOT_FOUND;
-    throw err;
-  }
-
-  await Campaign.findByIdAndDelete(id);
-  return { message: "Kampanya kalıcı olarak silindi." };
-};
-
-// Kampanya durumunu güncelle (cron job için)
-exports.updateExpiredCampaigns = async () => {
-  const now = new Date();
-  const result = await Campaign.updateMany(
-    { 
-      endDate: { $lt: now },
-      status: { $ne: 'expired' }
-    },
-    { 
-      status: 'expired',
-      isActive: false
-    }
-  );
-  return result;
-};
-
-// Admin için silme isteklerini getir
-exports.getDeleteRequests = async () => {
-  const campaigns = await Campaign.find({ isActive: false })
-    .populate("createdUserId", "name email")
-    .sort({ updatedAt: -1 });
-  return campaigns;
-};
-
-// Kampanyanın soru sayısını güncelle (dışarıdan erişilebilir)
+// Kampanya soru sayısını güncelle (dışarıdan erişilebilir)
 exports.updateQuestionCount = updateCampaignQuestionCount;

@@ -18,13 +18,23 @@ const createCampaignSchema = Joi.object({
       'string.max': 'Kampanya açıklaması en fazla 500 karakter olmalıdır',
       'any.required': 'Kampanya açıklaması zorunludur'
     }),
-  // ✅ YENİ: Detaylı kampanya içeriği
-  content: Joi.string()
-    .max(2000)
-    .default('')
-    .messages({
-      'string.max': 'Kampanya içeriği en fazla 2000 karakter olmalıdır'
-    }),
+  content: Joi.array().items(
+    Joi.object({
+      itemImage: Joi.string().uri().allow('', null).messages({
+        'string.uri': 'Geçerli bir item image URL giriniz'
+      }),
+      itemVideo: Joi.string().uri().allow('', null).messages({
+        'string.uri': 'Geçerli bir item video URL giriniz'
+      }),
+      itemTitle: Joi.string().max(500).allow('', null).messages({
+        'string.max': 'Item başlığı en fazla 500 karakter olmalıdır'
+      }),
+      itemDescription: Joi.string().max(500).allow('', null).messages({
+        'string.max': 'Item açıklaması en fazla 500 karakter olmalıdır'
+      }),
+      itemIndex: Joi.number().min(0).default(0)
+    })
+  ).default([]),
   reward: Joi.number()
     .min(0)
     .required()
@@ -33,13 +43,18 @@ const createCampaignSchema = Joi.object({
       'number.min': 'Ödül miktarı 0 veya daha büyük olmalıdır',
       'any.required': 'Ödül miktarı zorunludur'
     }),
-  maxParticipants: Joi.number()
-    .min(1)
-    .default(100)
-    .messages({
-      'number.base': 'Maksimum katılımcı sayısı sayı olmalıdır',
-      'number.min': 'Maksimum katılımcı sayısı en az 1 olmalıdır'
-    }),
+  maxParticipants: Joi.object({
+    A: Joi.number().min(0).default(0),
+    B: Joi.number().min(0).default(0),
+    C: Joi.number().min(0).default(0),
+    D: Joi.number().min(0).default(0)
+  }).default({ A:0,B:0,C:0,D:0 }),
+  currentParticipants: Joi.object({
+    A: Joi.number().min(0).default(0),
+    B: Joi.number().min(0).default(0),
+    C: Joi.number().min(0).default(0),
+    D: Joi.number().min(0).default(0)
+  }).default({ A:0,B:0,C:0,D:0 }),
   category: Joi.string()
     .valid('education', 'technology', 'health', 'finance', 'sports', 'entertainment', 'other')
     .default('education')
@@ -60,9 +75,11 @@ const createCampaignSchema = Joi.object({
     }),
   endDate: Joi.date()
     .required()
+    .greater(Joi.ref('startDate'))
     .messages({
       'date.base': 'Geçerli bir bitiş tarihi giriniz',
-      'any.required': 'Bitiş tarihi zorunludur'
+      'any.required': 'Bitiş tarihi zorunludur',
+      'date.greater': 'Bitiş tarihi başlangıç tarihinden sonra olmalıdır'
     }),
   questions: Joi.number()
     .min(1)
@@ -71,7 +88,6 @@ const createCampaignSchema = Joi.object({
       'number.base': 'Soru sayısı sayı olmalıdır',
       'number.min': 'Soru sayısı en az 1 olmalıdır'
     }),
-  // ✅ YENİ: Tahmini süre
   estimatedDuration: Joi.number()
     .min(1)
     .default(15)
@@ -79,155 +95,40 @@ const createCampaignSchema = Joi.object({
       'number.base': 'Tahmini süre sayı olmalıdır',
       'number.min': 'Tahmini süre en az 1 dakika olmalıdır'
     }),
-  images: Joi.array()
-    .items(Joi.string().uri())
-    .max(10)
-    .default([])
-    .messages({
-      'array.base': 'Resimler dizi formatında olmalıdır',
-      'array.max': 'En fazla 10 resim eklenebilir',
-      'string.uri': 'Geçerli resim URL\'leri giriniz'
-    }),
-  // ✅ YENİ: Image URLs
+  questionIds: Joi.array()
+    .items(Joi.string().regex(/^[0-9a-fA-F]{24}$/))
+    .default([]),
+  image: Joi.string().uri().allow('', null),
   imageUrls: Joi.array()
     .items(Joi.string().uri())
     .max(10)
-    .default([])
+    .default([]),
+  images: Joi.array()
+    .items(Joi.string().uri())
+    .max(10)
+    .default([]),
+  videoUrl: Joi.string().uri().allow('', null),
+  tags: Joi.array().items(Joi.string()).default([]),
+  status: Joi.string().valid('active','inactive','expired','upcoming').default('upcoming'),
+  isActive: Joi.boolean().default(true),
+  isAdminAccept: Joi.forbidden().messages({
+    'any.unknown': 'Sadece admin bu alanı değiştirebilir.'
+  }),
+  createdUserId: Joi.string().regex(/^[0-9a-fA-F]{24}$/).required()
     .messages({
-      'array.base': 'Resim URL\'leri dizi formatında olmalıdır',
-      'array.max': 'En fazla 10 resim eklenebilir',
-      'string.uri': 'Geçerli resim URL\'leri giriniz'
-    }),
-  videoLink: Joi.string()
-    .uri()
-    .allow(null, '')
-    .optional()
-    .messages({
-      'string.uri': 'Geçerli bir video linki giriniz'
-    }),
-  // ✅ YENİ: Video URL
-  videoUrl: Joi.string()
-    .uri()
-    .allow(null, '')
-    .optional()
-    .messages({
-      'string.uri': 'Geçerli bir video URL\'i giriniz'
-    }),
-  tags: Joi.array()
-    .items(Joi.string())
-    .default([])
-    .messages({
-      'array.base': 'Etiketler dizi formatında olmalıdır'
+      'string.empty': 'Oluşturan kullanıcı ID boş olamaz',
+      'any.required': 'Oluşturan kullanıcı ID zorunludur',
+      'string.pattern.base': 'Geçerli bir kullanıcı ID giriniz'
     })
 });
 
 // Kampanya güncelleme validation şeması
-const updateCampaignSchema = Joi.object({
-  title: Joi.string()
-    .max(100)
-    .messages({
-      'string.empty': 'Kampanya başlığı boş olamaz',
-      'string.max': 'Kampanya başlığı en fazla 100 karakter olmalıdır'
-    }),
-  description: Joi.string()
-    .max(500)
-    .messages({
-      'string.empty': 'Kampanya açıklaması boş olamaz',
-      'string.max': 'Kampanya açıklaması en fazla 500 karakter olmalıdır'
-    }),
-  // ✅ YENİ: Detaylı kampanya içeriği
-  content: Joi.string()
-    .max(2000)
-    .messages({
-      'string.max': 'Kampanya içeriği en fazla 2000 karakter olmalıdır'
-    }),
-  reward: Joi.number()
-    .min(0)
-    .messages({
-      'number.base': 'Ödül miktarı sayı olmalıdır',
-      'number.min': 'Ödül miktarı 0 veya daha büyük olmalıdır'
-    }),
-  maxParticipants: Joi.number()
-    .min(1)
-    .messages({
-      'number.base': 'Maksimum katılımcı sayısı sayı olmalıdır',
-      'number.min': 'Maksimum katılımcı sayısı en az 1 olmalıdır'
-    }),
-  category: Joi.string()
-    .valid('education', 'technology', 'health', 'finance', 'sports', 'entertainment', 'other')
-    .messages({
-      'any.only': 'Geçerli bir kategori seçiniz'
-    }),
-  difficulty: Joi.string()
-    .valid('Beginner', 'Intermediate', 'Advanced')
-    .messages({
-      'any.only': 'Geçerli bir zorluk seviyesi seçiniz'
-    }),
-  startDate: Joi.date()
-    .messages({
-      'date.base': 'Geçerli bir başlangıç tarihi giriniz'
-    }),
-  endDate: Joi.date()
-    .messages({
-      'date.base': 'Geçerli bir bitiş tarihi giriniz'
-    }),
-  questions: Joi.number()
-    .min(1)
-    .messages({
-      'number.base': 'Soru sayısı sayı olmalıdır',
-      'number.min': 'Soru sayısı en az 1 olmalıdır'
-    }),
-  // ✅ YENİ: Tahmini süre
-  estimatedDuration: Joi.number()
-    .min(1)
-    .messages({
-      'number.base': 'Tahmini süre sayı olmalıdır',
-      'number.min': 'Tahmini süre en az 1 dakika olmalıdır'
-    }),
-  images: Joi.array()
-    .items(Joi.string().uri())
-    .max(10)
-    .messages({
-      'array.base': 'Resimler dizi formatında olmalıdır',
-      'array.max': 'En fazla 10 resim eklenebilir',
-      'string.uri': 'Geçerli resim URL\'leri giriniz'
-    }),
-  // ✅ YENİ: Image URLs
-  imageUrls: Joi.array()
-    .items(Joi.string().uri())
-    .max(10)
-    .messages({
-      'array.base': 'Resim URL\'leri dizi formatında olmalıdır',
-      'array.max': 'En fazla 10 resim eklenebilir',
-      'string.uri': 'Geçerli resim URL\'leri giriniz'
-    }),
-  videoLink: Joi.string()
-    .uri()
-    .allow(null, '')
-    .optional()
-    .messages({
-      'string.uri': 'Geçerli bir video linki giriniz'
-    }),
-  // ✅ YENİ: Video URL
-  videoUrl: Joi.string()
-    .uri()
-    .allow(null, '')
-    .optional()
-    .messages({
-      'string.uri': 'Geçerli bir video URL\'i giriniz'
-    }),
-  tags: Joi.array()
-    .items(Joi.string())
-    .messages({
-      'array.base': 'Etiketler dizi formatında olmalıdır'
-    }),
-  isActive: Joi.boolean()
-    .messages({
-      'boolean.base': 'Aktiflik durumu boolean olmalıdır'
-    })
-});
+const updateCampaignSchema = createCampaignSchema.fork(
+  Object.keys(createCampaignSchema.describe().keys),
+  schema => schema.optional()
+);
 
-// ✅ YENİ: Progress update validation şeması
+// Progress update ve quiz completion validation senkron
 const updateProgressSchema = Joi.object({
   questionId: Joi.string()
     .required()
@@ -259,14 +160,9 @@ const updateProgressSchema = Joi.object({
       'number.min': 'Harcanan süre 0 veya daha büyük olmalıdır',
       'any.required': 'Harcanan süre zorunludur'
     }),
-  completed: Joi.boolean()
-    .default(false)
-    .messages({
-      'boolean.base': 'Tamamlanma durumu boolean olmalıdır'
-    })
+  completed: Joi.boolean().default(false)
 });
 
-// ✅ YENİ: Quiz completion validation şeması
 const completeQuizSchema = Joi.object({
   totalTimeSpent: Joi.number()
     .min(0)
@@ -302,74 +198,40 @@ const completeQuizSchema = Joi.object({
     })
 });
 
-// Validation middleware'leri
+// Middleware'ler
 const validateCreateCampaign = (req, res, next) => {
   const { error } = createCampaignSchema.validate(req.body, { abortEarly: false });
-  
   if (error) {
-    const errors = error.details.map(detail => detail.message);
-    return res.status(400).json({
-      success: false,
-      error: true,
-      message: 'Validation hatası',
-      errors,
-      code: 400
-    });
+    const errors = error.details.map(d => d.message);
+    return res.status(400).json({ success: false, error: true, message: 'Validation hatası', errors, code: 400 });
   }
-  
   next();
 };
 
 const validateUpdateCampaign = (req, res, next) => {
   const { error } = updateCampaignSchema.validate(req.body, { abortEarly: false });
-  
   if (error) {
-    const errors = error.details.map(detail => detail.message);
-    return res.status(400).json({
-      success: false,
-      error: true,
-      message: 'Validation hatası',
-      errors,
-      code: 400
-    });
+    const errors = error.details.map(d => d.message);
+    return res.status(400).json({ success: false, error: true, message: 'Validation hatası', errors, code: 400 });
   }
-  
   next();
 };
 
-// ✅ YENİ: Progress update validation middleware
 const validateUpdateProgress = (req, res, next) => {
   const { error } = updateProgressSchema.validate(req.body, { abortEarly: false });
-  
   if (error) {
-    const errors = error.details.map(detail => detail.message);
-    return res.status(400).json({
-      success: false,
-      error: true,
-      message: 'Validation hatası',
-      errors,
-      code: 400
-    });
+    const errors = error.details.map(d => d.message);
+    return res.status(400).json({ success: false, error: true, message: 'Validation hatası', errors, code: 400 });
   }
-  
   next();
 };
 
-// ✅ YENİ: Quiz completion validation middleware
 const validateCompleteQuiz = (req, res, next) => {
   const { error } = completeQuizSchema.validate(req.body, { abortEarly: false });
-  
   if (error) {
-    const errors = error.details.map(detail => detail.message);
-    return res.status(400).json({
-      success: false,
-      error: true,
-      message: 'Validation hatası',
-      errors,
-      code: 400
-    });
+    const errors = error.details.map(d => d.message);
+    return res.status(400).json({ success: false, error: true, message: 'Validation hatası', errors, code: 400 });
   }
-  
   next();
 };
 
@@ -382,4 +244,4 @@ module.exports = {
   validateUpdateCampaign,
   validateUpdateProgress,
   validateCompleteQuiz
-}; 
+};

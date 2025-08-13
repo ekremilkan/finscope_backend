@@ -2,6 +2,7 @@ const { StatusCodes } = require("http-status-codes");
 const campaignService = require("../services/campaign.service");
 const baseResponse = require("../dto/baseresponse.dto");
 
+// Kampanya oluştur
 exports.create = async (req, res) => {
   try {
     const data = await campaignService.create(req);
@@ -10,6 +11,8 @@ exports.create = async (req, res) => {
       data,
       message: "Kampanya başarıyla oluşturuldu",
       code: StatusCodes.CREATED,
+      isAdmin: req.user.role === 'admin',
+      isAdminAccept: data.isAdminAccept
     });
   } catch (error) {
     res.status(error.statusCode || 500).json({
@@ -22,6 +25,7 @@ exports.create = async (req, res) => {
   }
 };
 
+// Tüm kampanyaları getir
 exports.getAll = async (req, res) => {
   try {
     const data = await campaignService.getAll(req);
@@ -42,6 +46,7 @@ exports.getAll = async (req, res) => {
   }
 };
 
+// Kampanyayı ID'ye göre getir
 exports.getById = async (req, res) => {
   try {
     const data = await campaignService.getById(req);
@@ -62,7 +67,7 @@ exports.getById = async (req, res) => {
   }
 };
 
-// ✅ YENİ: Kullanıcının kampanya progress'ini getir
+// Kullanıcının kampanya progress'ini getir
 exports.getUserProgress = async (req, res) => {
   try {
     const data = await campaignService.getUserProgress(req);
@@ -83,7 +88,7 @@ exports.getUserProgress = async (req, res) => {
   }
 };
 
-// ✅ YENİ: Kampanyaya katıl
+// Kampanyaya katıl
 exports.joinCampaign = async (req, res) => {
   try {
     const data = await campaignService.joinCampaign(req);
@@ -104,7 +109,7 @@ exports.joinCampaign = async (req, res) => {
   }
 };
 
-// ✅ YENİ: Progress güncelle
+// Progress güncelle
 exports.updateProgress = async (req, res) => {
   try {
     const data = await campaignService.updateProgress(req);
@@ -125,14 +130,14 @@ exports.updateProgress = async (req, res) => {
   }
 };
 
-// ✅ YENİ: Quiz tamamla
+// Quiz tamamla
 exports.completeQuiz = async (req, res) => {
   try {
     const data = await campaignService.completeQuiz(req);
     res.status(StatusCodes.OK).json({
       ...baseResponse,
       data,
-      message: "Quiz completed successfully",
+      message: "Quiz tamamlandı",
       code: StatusCodes.OK,
     });
   } catch (error) {
@@ -146,6 +151,7 @@ exports.completeQuiz = async (req, res) => {
   }
 };
 
+// Kampanya güncelle
 exports.update = async (req, res) => {
   try {
     const data = await campaignService.update(req);
@@ -154,6 +160,8 @@ exports.update = async (req, res) => {
       data,
       message: "Kampanya güncellendi",
       code: StatusCodes.OK,
+      isAdmin: req.user.role === 'admin',
+      isAdminAccept: data.isAdminAccept
     });
   } catch (error) {
     res.status(error.statusCode || 500).json({
@@ -166,6 +174,7 @@ exports.update = async (req, res) => {
   }
 };
 
+// Kampanya sil
 exports.remove = async (req, res) => {
   try {
     const data = await campaignService.remove(req);
@@ -186,6 +195,7 @@ exports.remove = async (req, res) => {
   }
 };
 
+// Kampanya silme isteği
 exports.requestDelete = async (req, res) => {
   try {
     const data = await campaignService.requestDelete(req);
@@ -206,6 +216,7 @@ exports.requestDelete = async (req, res) => {
   }
 };
 
+// Müşteriye ait kampanyaları getir
 exports.getByCustomer = async (req, res) => {
   try {
     const data = await campaignService.getByCustomer(req);
@@ -226,6 +237,7 @@ exports.getByCustomer = async (req, res) => {
   }
 };
 
+// Silme isteklerini getir
 exports.getDeleteRequests = async (req, res) => {
   try {
     const data = await campaignService.getDeleteRequests();
