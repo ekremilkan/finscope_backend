@@ -277,21 +277,24 @@ exports.updateProgress = async (req) => {
 // ✅ YENİ: Campaign create (isAdminAccept kontrolü)
 exports.create = async (req) => {
   const { 
-    title, description, content, reward, maxParticipants, category, difficulty,
-    startDate, endDate, questions, tags, images, imageUrls, videoLink, videoUrl, estimatedDuration
+    title, description, content, reward, maxParticipants, category,
+    startDate, endDate, questions, tags, images, 
+    videoUrl, estimatedDuration 
   } = req.body;
 
   const createdUserId = req.user.userId;
-  const role = req.user.role; // admin veya customer
+  const role = req.user.role;
 
   const campaign = new Campaign({ 
-    title, description, content, reward, maxParticipants, category, difficulty, 
-    startDate, endDate, questions, tags, images: images || [], imageUrls: imageUrls || [],
-    videoLink: videoLink || null, videoUrl: videoUrl || null, estimatedDuration: estimatedDuration || 15,
+    title, description, content, reward, maxParticipants, category, 
+    startDate, endDate, questions, tags, images, // Modeldeki 'image' alanı kullanıldı
+    videoUrl: videoUrl || "", // Modeldeki 'videoUrl' alanı kullanıldı
+    estimatedDuration: estimatedDuration || 15,
     createdUserId,
     currentParticipants: {A:0,B:0,C:0,D:0},
     isAdminAccept: role === "admin" ? true : false,
-    isActive: true
+    // isActive'i doğrudan true yapmak yerine modelin pre-save hook'una bırakmak daha doğru olabilir.
+    // Model zaten başlangıç ve bitiş tarihine göre status'ü ve isActive'i ayarlayacaktır.
   });
 
   await campaign.save();

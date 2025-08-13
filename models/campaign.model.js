@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const campaignSchema = new mongoose.Schema({
   title: {
@@ -11,33 +11,33 @@ const campaignSchema = new mongoose.Schema({
     required: true,
     maxlength: 500,
   },
-    // Kampanyaya ait soruların ID'leri
+  // Kampanyaya ait soruların ID'leri
   content: [
     {
       itemImage: {
-      type: String,
-      default: '',
-      },
-      itemVideo:{
         type: String,
-        default:'',
+        default: "",
+      },
+      itemVideo: {
+        type: String,
+        default: "",
       },
       itemTitle: {
         type: String,
-        default: '',
+        default: "",
         maxlength: 500,
       },
       itemDescription: {
         type: String,
-        default: '',
+        default: "",
         maxlength: 500,
       },
-        itemIndex: {
+      itemIndex: {
         type: Number,
         default: 1,
         min: 0,
       },
-    }
+    },
   ],
   reward: {
     type: Number,
@@ -64,7 +64,7 @@ const campaignSchema = new mongoose.Schema({
       type: Number,
       default: 0,
       min: 0,
-    }
+    },
   },
   // ✅ YENİ: Mevcut katılımcı sayısı
   currentParticipants: {
@@ -87,12 +87,20 @@ const campaignSchema = new mongoose.Schema({
       type: Number,
       default: 0,
       min: 0,
-    }
+    },
   },
   category: {
     type: String,
-    default: 'education',
-    enum: ['education', 'technology', 'health', 'finance', 'sports', 'entertainment', 'other'],
+    default: "education",
+    enum: [
+      "education",
+      "technology",
+      "health",
+      "finance",
+      "sports",
+      "entertainment",
+      "other",
+    ],
   },
   startDate: {
     type: Date,
@@ -114,15 +122,14 @@ const campaignSchema = new mongoose.Schema({
     min: 1,
   },
   // Kampanyaya ait soruların ID'leri
-  questionIds: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Question',
-    default: []
-  }],
-  image: {
-    type: String, // Resim URL'leri dizisi
-    default: '',
-  },
+  questionIds: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Question",
+      default: [],
+    },
+  ],
+  images: { type: [String], default: [] },
   // ✅ YENİ: Video URL'i (eski videoLink yerine)
   videoUrl: {
     type: String,
@@ -134,13 +141,13 @@ const campaignSchema = new mongoose.Schema({
   },
   createdUserId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User', // Hangi kullanıcı oluşturdu
+    ref: "User", // Hangi kullanıcı oluşturdu
     required: true,
   },
   status: {
     type: String,
-    enum: ['active', 'inactive', 'expired', 'upcoming'],
-    default: 'upcoming',
+    enum: ["active", "inactive", "expired", "upcoming"],
+    default: "upcoming",
   },
   isActive: {
     type: Boolean,
@@ -157,36 +164,36 @@ const campaignSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now,
-  }
+  },
 });
 
 // Bitiş tarihi kontrolü ve status güncelleme
-campaignSchema.pre('save', function(next) {
+campaignSchema.pre("save", function (next) {
   const now = new Date();
-  
+
   // updatedAt alanını güncelle
   this.updatedAt = now;
-  
+
   // Status kontrolü
   if (this.endDate < now) {
-    this.status = 'expired';
+    this.status = "expired";
     this.isActive = false;
   } else if (this.startDate > now) {
-    this.status = 'upcoming';
+    this.status = "upcoming";
   } else {
-    this.status = 'active';
+    this.status = "active";
   }
-  
+
   next();
 });
 
 // Tarih validasyonu
-campaignSchema.pre('validate', function(next) {
+campaignSchema.pre("validate", function (next) {
   if (this.startDate >= this.endDate) {
-    const err = new Error('Başlangıç tarihi bitiş tarihinden önce olmalıdır.');
+    const err = new Error("Başlangıç tarihi bitiş tarihinden önce olmalıdır.");
     return next(err);
   }
   next();
 });
 
-module.exports = mongoose.model('Campaign', campaignSchema);
+module.exports = mongoose.model("Campaign", campaignSchema);
