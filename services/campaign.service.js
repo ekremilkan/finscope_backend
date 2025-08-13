@@ -314,6 +314,100 @@ exports.getAll = async (req) => {
   return campaigns;
 };
 
+// ✅ EKLENDİ: Kampanyayı ID'ye göre getir
+exports.getById = async (req) => {
+  const { id } = req.params;
+  const campaign = await Campaign.findById(id);
+  if (!campaign) {
+    const err = new Error("Kampanya bulunamadı.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+  return campaign;
+};
+
+// ✅ EKLENDİ: Kampanyayı güncelle (admin veya owner)
+exports.update = async (req) => {
+  const { id } = req.params;
+  const userId = req.user.userId;
+  const role = req.user.role;
+
+  // İstemciden gelen isAdminAccept değişikliğini customer yapamaz
+  if (role !== 'admin' && typeof req.body.isAdminAccept !== 'undefined') {
+    delete req.body.isAdminAccept;
+  }
+
+  // createdUserId değiştirilemez
+  if (typeof req.body.createdUserId !== 'undefined') {
+    delete req.body.createdUserId;
+  }
+
+  // Admin her kampanyayı güncelleyebilir; customer sadece kendi kampanyasını
+  const filter = role === 'admin' ? { _id: id } : { _id: id, createdUserId: userId };
+  const updated = await Campaign.findOneAndUpdate(
+    filter,
+    { ...req.body, updatedAt: new Date() },
+    { new: true, runValidators: true }
+  );
+
+  if (!updated) {
+    const err = new Error("Bu kampanyayı güncelleme yetkiniz yok veya kampanya bulunamadı.");
+    err.statusCode = StatusCodes.FORBIDDEN;
+    throw err;
+  }
+
+  return updated;
+};
+
+// ✅ EKLENDİ: Kampanya silme (admin için kalıcı, customer için yetki yok)
+exports.remove = async (req) => {
+  const { id } = req.params;
+  const role = req.user.role;
+
+  if (role !== 'admin') {
+    const err = new Error("Sadece admin kampanyayı kalıcı silebilir.");
+    err.statusCode = StatusCodes.FORBIDDEN;
+    throw err;
+  }
+
+  const deleted = await Campaign.findByIdAndDelete(id);
+  if (!deleted) {
+    const err = new Error("Kampanya bulunamadı.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
+  return { _id: deleted._id, title: deleted.title };
+};
+
+// ✅ EKLENDİ: Kampanya silme isteği (customer veya admin)
+exports.requestDelete = async (req) => {
+  const { id } = req.params;
+  const role = req.user.role;
+  const userId = req.user.userId;
+
+  // Admin veya kampanyayı oluşturan customer istekte bulunabilir
+  const filter = role === 'admin' ? { _id: id } : { _id: id, createdUserId: userId };
+  const updated = await Campaign.findOneAndUpdate(
+    filter,
+    { isActive: false, status: 'pending_deletion', updatedAt: new Date() },
+    { new: true }
+  );
+
+  if (!updated) {
+    const err = new Error("Bu kampanya için silme isteği oluşturma yetkiniz yok veya kampanya bulunamadı.");
+    err.statusCode = StatusCodes.FORBIDDEN;
+    throw err;
+  }
+
+  return updated;
+};
+
+// ✅ EKLENDİ: Silme isteklerini getir (admin)
+exports.getDeleteRequests = async () => {
+  return await Campaign.find({ status: 'pending_deletion', isActive: false });
+};
+
 // ✅ YENİ: Müşteriye ait kampanyaları getir (rol bazlı filtreleme)
 exports.getByCustomer = async (req) => {
   const customerId = req.user.userId;

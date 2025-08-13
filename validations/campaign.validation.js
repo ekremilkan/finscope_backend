@@ -49,6 +49,7 @@ const createCampaignSchema = Joi.object({
     C: Joi.number().min(0).default(0),
     D: Joi.number().min(0).default(0)
   }).default({ A:0,B:0,C:0,D:0 }),
+  // currentParticipants uygulama tarafından yönetilir; istemciden gelirse yok sayılacaktır
   currentParticipants: Joi.object({
     A: Joi.number().min(0).default(0),
     B: Joi.number().min(0).default(0),
@@ -60,12 +61,6 @@ const createCampaignSchema = Joi.object({
     .default('education')
     .messages({
       'any.only': 'Geçerli bir kategori seçiniz'
-    }),
-  difficulty: Joi.string()
-    .valid('Beginner', 'Intermediate', 'Advanced')
-    .default('Beginner')
-    .messages({
-      'any.only': 'Geçerli bir zorluk seviyesi seçiniz'
     }),
   startDate: Joi.date()
     .required()
@@ -98,11 +93,6 @@ const createCampaignSchema = Joi.object({
   questionIds: Joi.array()
     .items(Joi.string().regex(/^[0-9a-fA-F]{24}$/))
     .default([]),
-  image: Joi.string().uri().allow('', null),
-  imageUrls: Joi.array()
-    .items(Joi.string().uri())
-    .max(10)
-    .default([]),
   images: Joi.array()
     .items(Joi.string().uri())
     .max(10)
@@ -114,12 +104,10 @@ const createCampaignSchema = Joi.object({
   isAdminAccept: Joi.forbidden().messages({
     'any.unknown': 'Sadece admin bu alanı değiştirebilir.'
   }),
-  createdUserId: Joi.string().regex(/^[0-9a-fA-F]{24}$/).required()
-    .messages({
-      'string.empty': 'Oluşturan kullanıcı ID boş olamaz',
-      'any.required': 'Oluşturan kullanıcı ID zorunludur',
-      'string.pattern.base': 'Geçerli bir kullanıcı ID giriniz'
-    })
+  // createdUserId uygulama tarafından auth üzerinden set edilir; istemci gönderemez
+  createdUserId: Joi.forbidden().messages({
+    'any.unknown': 'createdUserId istemci tarafından gönderilemez'
+  })
 });
 
 // Kampanya güncelleme validation şeması

@@ -86,14 +86,14 @@ exports.getByCampaign = async (req) => {
 };
 
 exports.getByCustomer = async (req) => {
-  const createdUserId = req.user._id;
+  const createdUserId = req.user.userId;
   return await Question.find({ createdUserId })
     .sort({ order: 1, createdAt: -1 });
 };
 
 exports.update = async (req) => {
   const { id } = req.params;
-  const createdUserId = req.user._id;
+  const createdUserId = req.user.userId;
   const userRole = req.user.role;
   const { questionText, options, order } = req.body;
 
@@ -138,7 +138,7 @@ exports.update = async (req) => {
 
 exports.remove = async (req) => {
   const { id } = req.params;
-  const createdUserId = req.user._id;
+  const createdUserId = req.user.userId;
   const userRole = req.user.role;
 
   // Admin ise tüm soruları silebilir, değilse sadece kendi sorusunu

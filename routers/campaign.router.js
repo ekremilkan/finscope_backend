@@ -14,9 +14,10 @@ router.post(
   controller.campaignController.create
 );
 
-// Tüm kampanyaları getir (public - herkes görebilir)
+// Tüm kampanyaları getir (auth - admin tümünü, diğer roller filtreli görür)
 router.get(
   "/all",
+  middlewares.authMiddleware,
   controller.campaignController.getAll
 );
 
