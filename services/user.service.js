@@ -211,7 +211,7 @@ exports.logout = async (req) => {
   const { userId } = req.params;
   const user = await User.findById(userId);
   if (user) {
-    user.clearAccessToken();
+    // user.clearAccessToken();
     user.refreshToken = null;
     await user.save();
   }
