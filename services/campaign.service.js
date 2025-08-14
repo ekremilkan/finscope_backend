@@ -115,10 +115,10 @@ exports.getUserProgress = async (req) => {
   return userProgress;
 };
 
-// ✅ YENİ: Kampanyaya katıl (segment bazlı)
+// ✅ GÜNCELLENDİ: Kampanyaya katıl (Adminler için kontenjan kontrolsüz)
 exports.joinCampaign = async (req) => {
   const { id: campaignId } = req.params;
-  const userId = req.user.userId;
+  const { userId, role } = req.user; // Rol bilgisi alınıyor
 
   const campaign = await Campaign.findById(campaignId);
   if (!campaign) {
@@ -140,7 +140,55 @@ exports.joinCampaign = async (req) => {
     throw err;
   }
 
-  // Kullanıcı segmentini veritabanından al (UserSegment)
+  // --- YENİ: Admin rolü için özel kontrol bloğu (Kontenjanı atlar) ---
+  if (role === 'admin') {
+    // Admin, segment ve kontenjan kontrolünü atlar.
+    let userProgress;
+    if (existingProgress) {
+      userProgress = await UserProgress.findByIdAndUpdate(existingProgress._id, { joined: true, startedAt: new Date() }, { new: true });
+    } else {
+      userProgress = new UserProgress({
+        userId,
+        campaignId,
+        joined: true,
+        startedAt: new Date(),
+        progress: {
+          currentQuestion: 0,
+          totalQuestions: campaign.questions,
+          answeredQuestions: [],
+          correctAnswers: 0,
+          wrongAnswers: 0,
+          lastActivity: new Date()
+        }
+      });
+      await userProgress.save();
+    }
+
+    const participation = new CampaignParticipation({ campaignId, userId, joinedAt: new Date() });
+    await participation.save();
+
+    // Adminleri ayrı bir sayaçta tutarak segment kontenjanını etkilemelerini önlüyoruz.
+    if (!campaign.currentParticipants.admin) {
+        campaign.currentParticipants.admin = 0;
+    }
+    campaign.currentParticipants.admin += 1;
+    // Toplam katılımcı sayısını güncelle
+    campaign.participants = Object.values(campaign.currentParticipants).reduce((a, b) => a + b, 0);
+    await campaign.save();
+
+    return {
+      campaignId,
+      userId: userId.toString(),
+      joined: true,
+      joinedAt: userProgress.startedAt,
+      message: "Admin olarak kampanyaya başarıyla katıldınız (segment ve kontenjan kontrolü atlandı)."
+    };
+  }
+  // --- Admin kontrol bloğu sonu ---
+
+
+  // --- Normal Kullanıcılar İçin Mantık (Kontenjan kontrolü dahil) ---
+  // Aşağıdaki mantık, sadece rolü 'admin' olmayan kullanıcılar için çalışır.
   const preferredWindow = `${process.env.SEGMENT_WINDOW_DAYS || 90}d`;
   let segDoc = await UserSegment.findOne({ userId, chain: "ethereum", window: preferredWindow }).lean();
   if (!segDoc) {
