@@ -210,10 +210,12 @@ exports.verifyLogin = async (req) => {
 exports.logout = async (req) => {
   const { userId } = req.params;
   const user = await User.findById(userId);
+  
   if (user) {
     // user.clearAccessToken();
     user.refreshToken = null;
     await user.save();
+    console.log(`User ${userId} logged out successfully.`);
   }
   return { message: "Logout successful" };
 };
@@ -243,6 +245,30 @@ exports.getUserByName = async (req) => {
     throw new Error(error);
   }
 };
+
+exports.updateUserName = async (req) => {
+  const { userId } = req.params;
+  const { newName } = req.body;
+
+  // Kullanıcıyı bul
+  const user = await User.findById(userId);
+  if (!user) {
+    const err = new Error("User not found.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
+  // İsmi güncelle
+  user.name = newName;
+  await user.save();
+
+  return {
+    user: user,
+    message: "Name updated successfully."
+  };
+};
+
+
 // ----------------------------
 // Şifre Sıfırlama Fonksiyonları
 // ----------------------------

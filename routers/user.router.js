@@ -37,6 +37,8 @@ router.post("/logout/:userId", controller.userController.logout);
 router.get("/getUserById/:userId", controller.userController.getUserById);
 router.get("/getUserByName/:name", controller.userController.getUserByName);
 
+router.put("/updateUserName/:userId", controller.userController.updateUserName,validation.userValidation.validateUpdateUser);
+
 // Şifre sıfırlama
 router.post(
   "/forgot-password",

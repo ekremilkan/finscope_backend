@@ -143,6 +143,26 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
+exports.updateUserName = async (req, res) => {
+  try {
+    const data = await userService.user.updateUserName(req);
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Name updated successfully.",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
 /**
  * Refresh token ile yeni access token üretme
  */
