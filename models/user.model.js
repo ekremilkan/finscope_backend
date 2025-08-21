@@ -23,18 +23,6 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: true,
-      minlength: 8,
-      // Not: Güçlü şifre doğrulamasını frontend'de yapmak daha iyi bir kullanıcı
-      // deneyimi sunar, ancak burada olması da ek bir güvenlik katmanıdır.
-      validate: {
-        validator: function (password) {
-          return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/.test(
-            password
-          );
-        },
-        message:
-          "Şifre en az bir büyük harf, bir küçük harf, bir rakam ve bir özel karakter içermelidir",
-      },
     },
     role: {
       type: String,

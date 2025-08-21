@@ -29,22 +29,19 @@ const registerSchema = Joi.object({
     }),
 
   password: Joi.string()
-    .min(8)
-    .max(128)
-    .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .length(6)
+    .pattern(/^[0-9]{6}$/)
     .required()
     .messages({
-      "string.min": "Şifre en az 8 karakter olmalıdır",
-      "string.max": "Şifre en fazla 128 karakter olmalıdır",
-      "string.pattern.base":
-        "Şifre en az bir büyük harf, bir küçük harf, bir rakam ve bir özel karakter (@$!%*?&) içermelidir",
+      "string.length": "Şifre 6 haneli olmalıdır",
+      "string.pattern.base": "Şifre sadece rakamlardan oluşmalıdır",
       "string.empty": "Şifre boş olamaz",
       "any.required": "Şifre zorunludur",
     }),
 
   role: Joi.string()
-    .valid('customer', 'user', 'admin')
-    .default('user')
+    .valid("customer", "user", "admin")
+    .default("user")
     .messages({
       "any.only": "Geçerli bir rol seçiniz (customer, user, admin)",
     }),
@@ -93,11 +90,9 @@ const updateUserSchema = Joi.object({
       "string.empty": "E-posta boş olamaz",
     }),
 
-  role: Joi.string()
-    .valid('customer', 'user', 'admin')
-    .messages({
-      "any.only": "Geçerli bir rol seçiniz (customer, user, admin)",
-    }),
+  role: Joi.string().valid("customer", "user", "admin").messages({
+    "any.only": "Geçerli bir rol seçiniz (customer, user, admin)",
+  }),
 });
 
 // Validation middleware
@@ -194,13 +189,10 @@ const validateForgotPassword = (req, res, next) => {
 
 const validateVerifyResetCode = (req, res, next) => {
   const schema = Joi.object({
-    email: Joi.string()
-      .email()
-      .required()
-      .messages({
-        "string.email": "Lütfen geçerli bir e-posta adresi girin.",
-        "any.required": "E-posta alanı zorunludur.",
-      }),
+    email: Joi.string().email().required().messages({
+      "string.email": "Lütfen geçerli bir e-posta adresi girin.",
+      "any.required": "E-posta alanı zorunludur.",
+    }),
     code: Joi.string()
       .length(6)
       .pattern(/^[0-9]+$/)
@@ -223,13 +215,10 @@ const validateVerifyResetCode = (req, res, next) => {
 
 const validateResetPassword = (req, res, next) => {
   const schema = Joi.object({
-    email: Joi.string()
-      .email()
-      .required()
-      .messages({
-        "string.email": "Lütfen geçerli bir e-posta adresi girin.",
-        "any.required": "E-posta alanı zorunludur.",
-      }),
+    email: Joi.string().email().required().messages({
+      "string.email": "Lütfen geçerli bir e-posta adresi girin.",
+      "any.required": "E-posta alanı zorunludur.",
+    }),
     code: Joi.string()
       .length(6)
       .pattern(/^[0-9]+$/)
@@ -240,15 +229,13 @@ const validateResetPassword = (req, res, next) => {
         "any.required": "Kod zorunludur.",
       }),
     newPassword: Joi.string()
-      .min(8)
-      .max(128)
-      .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/)
+      .length(6)
+      .pattern(/^[0-9]{6}$/)
       .required()
       .messages({
-        "string.min": "Şifre en az 8 karakter olmalıdır",
-        "string.max": "Şifre en fazla 128 karakter olmalıdır",
-        "string.pattern.base":
-          "Şifre en az bir büyük harf, bir küçük harf, bir rakam ve bir özel karakter içermelidir",
+        "string.length": "Yeni şifre 6 haneli olmalıdır",
+        "string.pattern.base": "Yeni şifre sadece rakamlardan oluşmalıdır",
+        "string.empty": "Yeni şifre boş olamaz",
         "any.required": "Yeni şifre zorunludur.",
       }),
   });
@@ -267,12 +254,10 @@ const validateResetPassword = (req, res, next) => {
  */
 const validateRefreshToken = (req, res, next) => {
   const schema = Joi.object({
-    refreshToken: Joi.string()
-      .required()
-      .messages({
-        "string.empty": "Refresh token boş olamaz",
-        "any.required": "Refresh token zorunludur",
-      }),
+    refreshToken: Joi.string().required().messages({
+      "string.empty": "Refresh token boş olamaz",
+      "any.required": "Refresh token zorunludur",
+    }),
   });
 
   const { error } = schema.validate(req.body);
@@ -287,7 +272,6 @@ const validateRefreshToken = (req, res, next) => {
   }
   next();
 };
-
 
 module.exports = {
   registerSchema,
