@@ -7,7 +7,7 @@ const utils = require("../utils/index");
 const crypto = require("crypto");
 const { ethers } = require("ethers");
 
-const nonceStore = require("./nonce-store.service"); // productionda Redis’e taşınması önerilir
+const nonceStore = require("./nonce-store.service"); 
 
 exports.generateNonce = async (req) => {
   try {
@@ -27,94 +27,95 @@ exports.verifySignatureAndConnect = async (req) => {
   const { message, signature, network } = req.body;
   const { user: authenticatedUser } = req;
 
-  // 1. Girdi ve kullanıcı kontrolü
-  if (!message || !signature || !network) throw new Error("Eksik alanlar var.");
-  console.log("🔍 İstek verileri:", { authenticatedUser })  ;
-  if (!authenticatedUser || !authenticatedUser.userId) throw new Error("Geçerli bir kullanıcı oturumu gerekli.");
+  // 1. Input and user check
+  if (!message || !signature || !network) throw new Error("Missing required fields.");
+  if (!authenticatedUser || !authenticatedUser.userId || !authenticatedUser.email) throw new Error("A valid user session is required.");
   
-  // 2. İmza ve Nonce doğrulaması
+  // 2. Signature and nonce validation
   const recoveredAddress = ethers.utils.verifyMessage(message, signature).toLowerCase();
   const savedNonce = nonceStore.get(authenticatedUser.email);
   if (!savedNonce || !message.includes(savedNonce)) {
-    throw new Error("Geçersiz veya süresi dolmuş nonce.");
+    throw new Error("Invalid or expired nonce.");
   }
   nonceStore.delete(authenticatedUser.email);
 
-  // 3. Cüzdanın başka birine ait olup olmadığını kontrol et
-  const existingWallet = await Wallet.findOne({ address: recoveredAddress });
-  if (existingWallet && existingWallet.user.toString() !== authenticatedUser.userId.toString()) {
-    throw new Error("Bu cüzdan adresi zaten başka bir hesaba bağlı.");
+  // ------------------- NEW PART START -------------------
+  // 3. Global Wallet Check: Is this wallet already registered to another email?
+  const globalWalletCheck = await UserWallets.findOne({ address: recoveredAddress });
+
+  if (globalWalletCheck && globalWalletCheck.email !== authenticatedUser.email) {
+    throw new Error("This wallet address is already registered with another email address.");
   }
+  // ------------------- NEW PART END -----------------------
+
+  // 4. User-specific wallet check
+  const existingWallet = await Wallet.findOne({ user: authenticatedUser.userId, address: recoveredAddress });
+
   if (existingWallet) {
-    // Cüzdan zaten bu kullanıcıya ait ve doğrulanmışsa, işlemi bitir.
     if (!existingWallet.isVerified) {
         existingWallet.isVerified = true;
-        await existingWallet.save(); // Transaction olmadan kaydet
+        await existingWallet.save();
     }
-    return { message: "Bu cüzdan zaten hesabınıza bağlı." };
+    return { message: "This wallet is already linked to your account." };
   }
 
-  // --- YENİ VE SAĞLAM KAYIT MANTIĞI (TRANSACTION OLMADAN) ---
+  // --- NEW AND SAFE SAVE LOGIC ---
   let newWallet;
   try {
-    // 4. Önce yeni cüzdanı oluştur ve veritabanına kaydet.
-    console.log(`[DB] Yeni cüzdan kaydediliyor: ${recoveredAddress}`);
+    console.log(`[DB] Saving new wallet: ${recoveredAddress}`);
     newWallet = new Wallet({
       user: authenticatedUser.userId,
       address: recoveredAddress,
       network,
       isVerified: true,
     });
-    await newWallet.save(); // Cüzdanı kaydet
-    console.log(`[DB] Yeni cüzdan başarıyla kaydedildi. ID: ${newWallet._id}`);
+    await newWallet.save();
+    console.log(`[DB] New wallet successfully saved. ID: ${newWallet._id}`);
 
-    // 5. Cüzdan başarıyla kaydedildikten sonra, User modelini güncelle.
-    console.log(`[DB] Kullanıcı güncelleniyor: ${authenticatedUser.userId}`);
+    console.log(`[DB] Updating user: ${authenticatedUser.userId}`);
     await User.findByIdAndUpdate(
       authenticatedUser.userId,
-      { $push: { wallets: newWallet._id } } // $push operatörü ile atomik güncelleme
+      { $push: { wallets: newWallet._id } }
     );
-    console.log(`[DB] Kullanıcı başarıyla güncellendi.`);
+    console.log(`[DB] User successfully updated.`);
+
+    console.log(`[DB] Updating global wallet list: ${authenticatedUser.email}`);
+    await UserWallets.findOneAndUpdate(
+        { email: authenticatedUser.email },
+        { $addToSet: { address: recoveredAddress } },
+        { upsert: true, new: true }
+    );
+    console.log(`[DB] Global wallet list successfully updated.`);
     
-    // 6. Her şey başarılı, frontend'e başarı yanıtı dön.
     return {
-      message: "Cüzdan başarıyla doğrulandı ve hesabınıza bağlandı.",
+      message: "Wallet successfully verified and linked to your account.",
       address: recoveredAddress,
     };
   } catch (dbError) {
-    // Eğer User güncellemesi veya Wallet kaydı başarısız olursa,
-    // oluşturduğumuz cüzdanı silerek veritabanını temiz tutalım (manuel rollback).
-    console.error("💥 Veritabanı kaydı sırasında kritik hata:", dbError);
+    console.error("💥 Critical error during database save:", dbError);
     if (newWallet && newWallet._id) {
-      console.log(`[DB Rollback] Başarısız işlem nedeniyle cüzdan siliniyor: ${newWallet._id}`);
+      console.log(`[DB Rollback] Deleting wallet due to failed operation: ${newWallet._id}`);
       await Wallet.findByIdAndDelete(newWallet._id);
     }
-    // Hatanın ne olduğunu frontend'e bildirelim.
-    throw new Error("Cüzdan kaydedilirken bir veritabanı hatası oluştu.");
+    throw new Error("A database error occurred while saving the wallet.");
   }
 };
 
 exports.getUserWallets = async (req) => {
   try {
-    // Middleware'den gelen req.user objesinden userId'yi alıyoruz
     const { userId } = req.user;
     if (!userId) {
-      throw new Error("Kullanıcı kimliği bulunamadı.");
+      throw new Error("User ID not found.");
     }
     
-    // --- DOĞRU SORGULAMA ---
-    // Wallet modelinde 'user' alanı, giriş yapmış kullanıcının 'userId'sine eşit olanları bul.
     const wallets = await Wallet.find({ user: userId }).sort({ createdAt: -1 });
-    // -----------------------
 
     return wallets;
   } catch (error) {
-    // Orijinal hatayı loglamak daha faydalı olabilir
     console.error("getUserWallets service error:", error);
-    throw new Error("Cüzdanlar listelenirken bir hata oluştu.");
+    throw new Error("An error occurred while fetching wallets.");
   }
 };
-
 
 exports.getWalletStatus = async (req) => {
   try {
@@ -122,7 +123,7 @@ exports.getWalletStatus = async (req) => {
     const { walletAddress } = req.query;
 
     if (!walletAddress) {
-      throw new Error("Cüzdan adresi gerekli.");
+      throw new Error("Wallet address is required.");
     }
 
     const wallet = await Wallet.findOne({
@@ -141,7 +142,6 @@ exports.getWalletStatus = async (req) => {
   }
 };
 
-
 exports.deleteWallet = async (req) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -151,7 +151,7 @@ exports.deleteWallet = async (req) => {
 
     const wallet = await Wallet.findOne({ user: userId, address: address.toLowerCase() });
     if (!wallet) {
-      throw new Error("Silinecek cüzdan bulunamadı veya bu cüzdan size ait değil.");
+      throw new Error("Wallet to delete not found or does not belong to you.");
     }
 
     await User.updateOne(
@@ -163,10 +163,10 @@ exports.deleteWallet = async (req) => {
     await Wallet.deleteOne({ _id: wallet._id }, { session });
 
     await session.commitTransaction();
-    return { message: "Cüzdan başarıyla silindi." };
+    return { message: "Wallet successfully deleted." };
   } catch (error) {
     await session.abortTransaction();
-    throw new Error("Cüzdan silinirken bir hata oluştu.");
+    throw new Error("An error occurred while deleting the wallet.");
   } finally {
     session.endSession();
   }
@@ -178,9 +178,8 @@ exports.updateWalletNetwork = async (req) => {
     const { address } = req.params;
     const { network } = req.body;
 
-    
     if (!network) {
-      throw new Error("Yeni ağ bilgisi ('network') zorunludur.");
+      throw new Error("New network information ('network') is required.");
     }
 
     const updatedWallet = await Wallet.findOneAndUpdate(
@@ -189,20 +188,17 @@ exports.updateWalletNetwork = async (req) => {
       { new: true } 
     );
 
-
     if (!updatedWallet) {
-      throw new Error("Cüzdan bulunamadı veya bu cüzdan size ait değil.");
+      throw new Error("Wallet not found or this wallet does not belong to you.");
     }
 
-  
     return {
-      message: "Cüzdanın ağı başarıyla güncellendi.",
+      message: "Wallet network successfully updated.",
       wallet: updatedWallet,
     };
     
   } catch (error) {
-    
     console.error("updateWalletNetwork service error:", error);
-    throw new Error("Cüzdan ağı güncellenirken bir hata oluştu.");
+    throw new Error("An error occurred while updating the wallet network.");
   }
 };
