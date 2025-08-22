@@ -2,8 +2,32 @@ const express = require("express");
 const controller = require("../controllers/index");
 const middlewares = require("../middlewares/index");
 const { uploadMiddleware, handleUploadError } = require("../services/upload.service");
+const path = require("path");
+const fs = require("fs");
 
 const router = express.Router();
+
+// Proxy endpoint - CORS sorunu için
+router.get('/proxy/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, '../uploads', filename);
+  
+  // Dosyanın var olup olmadığını kontrol et
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ 
+      success: false, 
+      message: 'Dosya bulunamadı' 
+    });
+  }
+  
+  // CORS headers
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  // Dosyayı gönder
+  res.sendFile(filePath);
+});
 
 // Tek dosya yükleme
 router.post(

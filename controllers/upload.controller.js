@@ -31,10 +31,10 @@ exports.uploadSingle = async (req, res) => {
       });
     }
 
-    // Dosyayı yükle
+    // Dosyayı yükle - varsayılan olarak local storage kullan
     const uploadOptions = {
       folder: req.body.folder || 'campaigns',
-      useCloudinary: req.body.useCloudinary !== 'false'
+      useCloudinary: false // Varsayılan olarak local storage
     };
 
     const result = await UploadService.uploadSingle(req.file, uploadOptions);
@@ -102,10 +102,10 @@ exports.uploadMultiple = async (req, res) => {
       });
     }
 
-    // Dosyaları yükle
+    // Dosyaları yükle - varsayılan olarak local storage kullan
     const uploadOptions = {
       folder: req.body.folder || 'campaigns',
-      useCloudinary: req.body.useCloudinary !== 'false'
+      useCloudinary: false // Varsayılan olarak local storage
     };
 
     const results = await UploadService.uploadMultiple(req.files, uploadOptions);
