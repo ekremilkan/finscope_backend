@@ -98,4 +98,21 @@ router.get(
   controller.campaignController.getDeleteRequests
 );
 
+// ✅ YENİ: Tamamlanan kullanıcıları listele (admin)
+router.get(
+  "/admin/completed-users",
+  middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdmin,
+  controller.campaignController.listCompletedUsers
+);
+
+// ✅ YENİ: Ödeme (isPurchase) durumunu güncelle (admin)
+router.patch(
+  "/admin/completed-users/:userId/:campaignId/purchase",
+  middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdmin,
+  validation.campaignValidation.validateUpdatePurchase,
+  controller.campaignController.updatePurchaseStatus
+);
+
 module.exports = { campaign: router };

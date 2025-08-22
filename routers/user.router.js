@@ -72,4 +72,11 @@ router.post(
   controller.userController.refreshToken
 );
 
+router.get(
+  "/admin/total-count",
+  middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdmin,
+  controller.userController.getTotalUserCount
+);
+
 module.exports = { user: router };

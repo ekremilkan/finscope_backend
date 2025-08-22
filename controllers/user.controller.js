@@ -272,3 +272,23 @@ exports.getUserByName = async (req, res) => {
     });
   }
 };
+
+exports.getTotalUserCount = async (req, res) => {
+  try {
+    const data = await userService.user.getTotalUserCount();
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Total user count retrieved successfully",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};

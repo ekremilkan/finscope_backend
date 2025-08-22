@@ -257,3 +257,45 @@ exports.getDeleteRequests = async (req, res) => {
     });
   }
 };
+
+// ✅ YENİ: Tamamlanan kullanıcıları listele
+exports.listCompletedUsers = async (req, res) => {
+  try {
+    const data = await campaignService.listCompletedUsers(req);
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Completed users retrieved successfully",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
+// ✅ YENİ: Ödeme (isPurchase) durumunu güncelle
+exports.updatePurchaseStatus = async (req, res) => {
+  try {
+    const data = await campaignService.updatePurchaseStatus(req);
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Purchase status updated",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};

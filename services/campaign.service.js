@@ -2,6 +2,7 @@ const Campaign = require("../models/campaign.model");
 const UserProgress = require("../models/userProgress.model");
 const CampaignParticipation = require("../models/campaignParticipation.model");
 const UserSegment = require("../models/userSegment.model");
+const Wallet = require("../models/wallet.model");
 const { StatusCodes } = require("http-status-codes");
 
 // Kampanya soru sayısını güncelle
@@ -433,6 +434,90 @@ exports.getByCustomer = async (req) => {
 
   const campaigns = await Campaign.find(filter);
   return campaigns;
+};
+
+// ✅ YENİ: Tamamlanan kullanıcıları listele
+exports.listCompletedUsers = async (req) => {
+  // Sadece admin controller katmanında yetkilendiriliyor
+  // Burada filtreleme yapılır
+  const { campaignId } = req.query; // opsiyonel: belirli bir kampanya için filtreleme
+  const filter = { completed: true };
+  if (campaignId) {
+    filter.campaignId = campaignId;
+  }
+
+  // Progress, user ve campaign bilgilerini topla
+  const progresses = await UserProgress.find(filter)
+    .populate('userId', 'name email')
+    .populate('campaignId', 'title reward')
+    .lean();
+
+  if (!progresses.length) return [];
+
+  const preferredWindow = `${process.env.SEGMENT_WINDOW_DAYS || 90}d`;
+
+  const results = [];
+  for (const p of progresses) {
+    // Orphan kayıtlara karşı güvenlik
+    if (!p.userId || !p.campaignId) {
+      continue;
+    }
+
+    const userIdVal = String(p.userId._id || p.userId);
+    const campaignIdVal = String(p.campaignId._id || p.campaignId);
+
+    // Segment: önce preferred window, yoksa en güncel fallback
+    let segDoc = await UserSegment.findOne({ userId: userIdVal, chain: 'ethereum', window: preferredWindow })
+      .sort({ asOf: -1 })
+      .lean();
+    if (!segDoc) {
+      segDoc = await UserSegment.findOne({ userId: userIdVal, chain: 'ethereum' })
+        .sort({ asOf: -1 })
+        .lean();
+    }
+    const segmentClass = segDoc?.class || null;
+
+    // Airdrop cüzdanını bul (Wallet koleksiyonundan)
+    const airdropWalletDoc = await Wallet.findOne({ user: userIdVal, isAirdropAddress: true }).lean();
+    const airdropWallet = airdropWalletDoc?.address || null;
+
+    results.push({
+      userId: userIdVal,
+      userName: p.userId.name || null,
+      campaignId: campaignIdVal,
+      campaignTitle: p.campaignId.title || null,
+      completedAt: p.completedAt,
+      segment: segmentClass,
+      reward: p.campaignId.reward,
+      isPurchase: !!p.isPurchase,
+      airdropWallet,
+    });
+  }
+
+  return results;
+};
+
+// ✅ YENİ: Ödeme (isPurchase) durumunu güncelle
+exports.updatePurchaseStatus = async (req) => {
+  const { userId, campaignId } = req.params;
+  const { isPurchase } = req.body;
+
+  const progress = await UserProgress.findOne({ userId, campaignId });
+  if (!progress) {
+    const err = new Error('Progress not found for given user and campaign');
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
+  progress.isPurchase = !!isPurchase;
+  await progress.save();
+
+  return {
+    userId: String(userId),
+    campaignId: String(campaignId),
+    isPurchase: progress.isPurchase,
+    updatedAt: progress.updatedAt
+  };
 };
 
 // Kampanya soru sayısını güncelle (dışarıdan erişilebilir)

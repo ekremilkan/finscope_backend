@@ -412,3 +412,8 @@ exports.refreshAccessToken = async (req) => {
     throw err;
   }
 };
+
+exports.getTotalUserCount = async () => {
+  const totalUsers = await User.countDocuments({});
+  return { totalUsers };
+};

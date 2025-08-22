@@ -223,6 +223,34 @@ const validateCompleteQuiz = (req, res, next) => {
   next();
 };
 
+// ✅ YENİ: Ödeme durumu güncelleme validation
+const validateUpdatePurchase = (req, res, next) => {
+  const bodySchema = Joi.object({
+    isPurchase: Joi.boolean().required().messages({
+      'boolean.base': 'isPurchase boolean olmalıdır',
+      'any.required': 'isPurchase alanı zorunludur'
+    })
+  });
+
+  // Body kontrolü
+  const { error } = bodySchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ success: false, error: true, message: error.details[0].message, code: 400 });
+  }
+
+  // Param kontrolü (ObjectId deseni)
+  const objectIdRegex = /^[0-9a-fA-F]{24}$/;
+  const { userId, campaignId } = req.params || {};
+  if (!objectIdRegex.test(userId || '')) {
+    return res.status(400).json({ success: false, error: true, message: 'Geçersiz userId', code: 400 });
+  }
+  if (!objectIdRegex.test(campaignId || '')) {
+    return res.status(400).json({ success: false, error: true, message: 'Geçersiz campaignId', code: 400 });
+  }
+
+  next();
+};
+
 module.exports = {
   createCampaignSchema,
   updateCampaignSchema,
@@ -231,5 +259,6 @@ module.exports = {
   validateCreateCampaign,
   validateUpdateCampaign,
   validateUpdateProgress,
-  validateCompleteQuiz
+  validateCompleteQuiz,
+  validateUpdatePurchase
 };

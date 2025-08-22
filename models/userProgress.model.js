@@ -68,6 +68,10 @@ const userProgressSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  isPurchase: {
+    type: Boolean,
+    default: false,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
