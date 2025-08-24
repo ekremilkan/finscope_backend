@@ -1,11 +1,13 @@
 const mongoose = require("mongoose");
 const User = require("../models/user.model");
 const Wallet = require("../models/wallet.model");
+const userWallets = require("../models/userWallets.model");
 const Transaction = require("../models/transaction.model");
 const { StatusCodes } = require("http-status-codes");
 const utils = require("../utils/index");
 const crypto = require("crypto");
 const { ethers } = require("ethers");
+
 
 const nonceStore = require("./nonce-store.service"); 
 
@@ -41,7 +43,7 @@ exports.verifySignatureAndConnect = async (req) => {
 
   // ------------------- NEW PART START -------------------
   // 3. Global Wallet Check: Is this wallet already registered to another email?
-  const globalWalletCheck = await UserWallets.findOne({ address: recoveredAddress });
+  const globalWalletCheck = await userWallets.findOne({ address: recoveredAddress });
 
   if (globalWalletCheck && globalWalletCheck.email !== authenticatedUser.email) {
     throw new Error("This wallet address is already registered with another email address.");
@@ -80,7 +82,7 @@ exports.verifySignatureAndConnect = async (req) => {
     console.log(`[DB] User successfully updated.`);
 
     console.log(`[DB] Updating global wallet list: ${authenticatedUser.email}`);
-    await UserWallets.findOneAndUpdate(
+    await userWallets.findOneAndUpdate(
         { email: authenticatedUser.email },
         { $addToSet: { address: recoveredAddress } },
         { upsert: true, new: true }
