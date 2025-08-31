@@ -39,9 +39,33 @@ const campaignSchema = new mongoose.Schema({
       },
     },
   ],
+  // ✅ GÜNCELLENDİ: Her segment için farklı ödül değerleri
+  rewards: {
+    A: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    B: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    C: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    D: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+  },
+  // ✅ Eski reward alanı (geriye uyumluluk için)
   reward: {
     type: Number,
-    required: true,
+    default: 0,
     min: 0,
   },
   maxParticipants: {

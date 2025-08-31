@@ -35,13 +35,50 @@ const createCampaignSchema = Joi.object({
       itemIndex: Joi.number().min(0).default(0)
     })
   ).default([]),
+  // ✅ GÜNCELLENDİ: Her segment için farklı ödül değerleri
+  rewards: Joi.object({
+    A: Joi.number()
+      .min(0)
+      .required()
+      .messages({
+        'number.base': 'A segmenti ödül miktarı sayı olmalıdır',
+        'number.min': 'A segmenti ödül miktarı 0 veya daha büyük olmalıdır',
+        'any.required': 'A segmenti ödül miktarı zorunludur'
+      }),
+    B: Joi.number()
+      .min(0)
+      .required()
+      .messages({
+        'number.base': 'B segmenti ödül miktarı sayı olmalıdır',
+        'number.min': 'B segmenti ödül miktarı 0 veya daha büyük olmalıdır',
+        'any.required': 'B segmenti ödül miktarı zorunludur'
+      }),
+    C: Joi.number()
+      .min(0)
+      .required()
+      .messages({
+        'number.base': 'C segmenti ödül miktarı sayı olmalıdır',
+        'number.min': 'C segmenti ödül miktarı 0 veya daha büyük olmalıdır',
+        'any.required': 'C segmenti ödül miktarı zorunludur'
+      }),
+    D: Joi.number()
+      .min(0)
+      .required()
+      .messages({
+        'number.base': 'D segmenti ödül miktarı sayı olmalıdır',
+        'number.min': 'D segmenti ödül miktarı 0 veya daha büyük olmalıdır',
+        'any.required': 'D segmenti ödül miktarı zorunludur'
+      })
+  }).required().messages({
+    'any.required': 'Segment ödülleri zorunludur'
+  }),
+  // ✅ Eski reward alanı (geriye uyumluluk için)
   reward: Joi.number()
     .min(0)
-    .required()
+    .default(0)
     .messages({
       'number.base': 'Ödül miktarı sayı olmalıdır',
-      'number.min': 'Ödül miktarı 0 veya daha büyük olmalıdır',
-      'any.required': 'Ödül miktarı zorunludur'
+      'number.min': 'Ödül miktarı 0 veya daha büyük olmalıdır'
     }),
   maxParticipants: Joi.object({
     A: Joi.number().min(0).default(0),
