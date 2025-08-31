@@ -522,3 +522,143 @@ exports.updatePurchaseStatus = async (req) => {
 
 // Kampanya soru sayısını güncelle (dışarıdan erişilebilir)
 exports.updateQuestionCount = updateCampaignQuestionCount;
+
+// ✅ YENİ: Kullanıcının segmentine göre potansiyel kazanç analizi
+exports.getUserSegmentEarningsAnalysis = async (req) => {
+  const userId = req.user.userId;
+  
+  // 1. Kullanıcının mevcut segmentini al
+  const preferredWindow = `${process.env.SEGMENT_WINDOW_DAYS || 90}d`;
+  let userSegment = await UserSegment.findOne({ 
+    userId, 
+    chain: 'ethereum', 
+    window: preferredWindow 
+  }).sort({ asOf: -1 }).lean();
+  
+  if (!userSegment) {
+    // Fallback: en güncel segment
+    userSegment = await UserSegment.findOne({ 
+      userId, 
+      chain: 'ethereum' 
+    }).sort({ asOf: -1 }).lean();
+  }
+  
+  if (!userSegment) {
+    const err = new Error('User segment not found. Please complete wallet verification first.');
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+  
+  const userSegmentClass = userSegment.class; // A, B, C, D
+  
+  // 2. Kullanıcının tamamladığı kampanyaları ve kazandığı ödülleri hesapla
+  const completedCampaigns = await UserProgress.find({
+    userId,
+    completed: true,
+    campaignId: { $exists: true, $ne: null } // Campaign ID'si null olmayan kayıtlar
+  }).populate('campaignId', 'title reward maxParticipants currentParticipants status isActive isAdminAccept').lean();
+  
+  let actualEarnings = 0;
+  const completedCampaignDetails = [];
+  
+  for (const progress of completedCampaigns) {
+    if (progress.campaignId) {
+      actualEarnings += progress.campaignId.reward || 0;
+      completedCampaignDetails.push({
+        campaignId: progress.campaignId._id,
+        title: progress.campaignId.title,
+        reward: progress.campaignId.reward,
+        completedAt: progress.completedAt
+      });
+    }
+  }
+  
+  // 3. Kullanıcının segmentine uygun tüm geçmiş kampanyaları bul
+  const userSegmentCampaigns = await Campaign.find({
+    status: { $in: ['active', 'expired', 'inactive'] }, // inactive kampanyaları da dahil et
+    isActive: true,
+    isAdminAccept: true,
+    endDate: { $lte: new Date() } // Bitiş tarihi geçmiş kampanyalar
+  }).lean();
+  
+  let potentialEarnings = 0;
+  const potentialCampaignDetails = [];
+  
+  for (const campaign of userSegmentCampaigns) {
+    // Kampanyanın kullanıcının segmentine ait kontenjanı var mı kontrol et
+    const segmentMaxParticipants = campaign.maxParticipants[userSegmentClass] || 0;
+    
+    if (segmentMaxParticipants > 0) {
+      potentialEarnings += campaign.reward;
+      potentialCampaignDetails.push({
+        campaignId: campaign._id,
+        title: campaign.title,
+        reward: campaign.reward,
+        segmentMaxParticipants,
+        segmentCurrentParticipants: campaign.currentParticipants[userSegmentClass] || 0,
+        endDate: campaign.endDate
+      });
+    }
+  }
+  
+  // 4. Kullanıcının katıldığı ama tamamlamadığı kampanyaları bul
+  const joinedButNotCompleted = await UserProgress.find({
+    userId,
+    joined: true,
+    completed: false,
+    campaignId: { $exists: true, $ne: null } // Campaign ID'si null olmayan kayıtlar
+  }).populate('campaignId', 'title reward status isActive isAdminAccept').lean();
+  
+  const inProgressCampaigns = [];
+  for (const progress of joinedButNotCompleted) {
+    if (progress.campaignId) {
+      inProgressCampaigns.push({
+        campaignId: progress.campaignId._id,
+        title: progress.campaignId.title,
+        reward: progress.campaignId.reward,
+        progress: progress.progress
+      });
+    }
+  }
+  
+  // 5. Sonuçları hesapla
+  const missedEarnings = potentialEarnings - actualEarnings;
+  const completionRate = potentialCampaignDetails.length > 0 
+    ? (completedCampaignDetails.length / potentialCampaignDetails.length) * 100 
+    : 0;
+  
+  // 6. Kayıp analizi detayları
+  const missedCampaigns = potentialCampaignDetails.filter(campaign => 
+    !completedCampaignDetails.find(completed => 
+      completed.campaignId.toString() === campaign.campaignId.toString()
+    )
+  );
+  
+  return {
+    userSegment: {
+      class: userSegmentClass,
+      compositeScore: userSegment.compositeScore,
+      percentile: userSegment.percentile,
+      confidence: userSegment.confidence,
+      asOf: userSegment.asOf
+    },
+    earnings: {
+      actualEarnings,
+      potentialEarnings,
+      missedEarnings,
+      completionRate: Math.round(completionRate * 100) / 100
+    },
+    campaigns: {
+      completed: completedCampaignDetails,
+      potential: potentialCampaignDetails,
+      missed: missedCampaigns, // ✅ YENİ: Kaçırılan kampanyalar
+      inProgress: inProgressCampaigns
+    },
+    summary: {
+      totalCompletedCampaigns: completedCampaignDetails.length,
+      totalPotentialCampaigns: potentialCampaignDetails.length,
+      totalMissedCampaigns: missedCampaigns.length, // ✅ YENİ: Kaçırılan kampanya sayısı
+      totalInProgressCampaigns: inProgressCampaigns.length
+    }
+  };
+};

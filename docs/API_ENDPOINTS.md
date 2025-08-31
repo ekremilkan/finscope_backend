@@ -142,6 +142,94 @@ Authorization: Bearer <token>
 **Yetki:** Sadece Admin
 **İşlem:** isActive false olan kampanyaları listeler
 
+### ✅ YENİ: Kullanıcının Segmentine Göre Potansiyel Kazanç Analizi
+```http
+GET /api/v1/campaigns/user/segment-earnings-analysis
+Authorization: Bearer <token>
+```
+
+**Yetki:** Giriş yapmış kullanıcılar
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "userSegment": {
+      "class": "A",
+      "compositeScore": 85.5,
+      "percentile": 92.3,
+      "confidence": 0.95,
+      "asOf": "2024-12-19T10:30:00.000Z"
+    },
+    "earnings": {
+      "actualEarnings": 450,
+      "potentialEarnings": 1200,
+      "missedEarnings": 750,
+      "completionRate": 37.5
+    },
+    "campaigns": {
+      "completed": [
+        {
+          "campaignId": "507f1f77bcf86cd799439011",
+          "title": "Blockchain Eğitimi",
+          "reward": 150,
+          "completedAt": "2024-12-15T14:30:00.000Z"
+        }
+      ],
+      "potential": [
+        {
+          "campaignId": "507f1f77bcf86cd799439012",
+          "title": "DeFi Kampanyası",
+          "reward": 200,
+          "segmentMaxParticipants": 100,
+          "segmentCurrentParticipants": 85,
+          "endDate": "2024-12-20T23:59:59.000Z"
+        }
+      ],
+      "inProgress": [
+        {
+          "campaignId": "507f1f77bcf86cd799439013",
+          "title": "NFT Eğitimi",
+          "reward": 100,
+          "progress": {
+            "currentQuestion": 3,
+            "totalQuestions": 5,
+            "correctAnswers": 2,
+            "wrongAnswers": 1
+          }
+        }
+      ]
+    },
+    "summary": {
+      "totalCompletedCampaigns": 3,
+      "totalPotentialCampaigns": 8,
+      "totalInProgressCampaigns": 1
+    }
+  },
+  "message": "User segment earnings analysis retrieved successfully",
+  "code": 200
+}
+```
+
+**Açıklama:**
+- `userSegment`: Kullanıcının mevcut segment bilgileri
+- `earnings`: Kazanç analizi (gerçek, potansiyel, kaçırılan)
+- `campaigns.completed`: Tamamlanan kampanyalar
+- `campaigns.potential`: Kullanıcının segmentine uygun geçmiş kampanyalar
+- `campaigns.inProgress`: Katıldığı ama tamamlamadığı kampanyalar
+- `summary`: Özet istatistikler
+
+**Hata Durumları:**
+```json
+{
+  "success": false,
+  "error": true,
+  "message": "User segment not found. Please complete wallet verification first.",
+  "code": 404
+}
+```
+
 ## ❓ Question Endpoints
 
 ### Soru Oluşturma

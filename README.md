@@ -192,6 +192,47 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
+#### 📊 Campaign Endpoints
+
+##### ✅ YENİ: Kullanıcının Segmentine Göre Potansiyel Kazanç Analizi
+```http
+GET /api/v1/campaigns/user/segment-earnings-analysis
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "userSegment": {
+      "class": "A",
+      "compositeScore": 85.5,
+      "percentile": 92.3,
+      "confidence": 0.95
+    },
+    "earnings": {
+      "actualEarnings": 450,
+      "potentialEarnings": 1200,
+      "missedEarnings": 750,
+      "completionRate": 37.5
+    },
+    "campaigns": {
+      "completed": [...],
+      "potential": [...],
+      "inProgress": [...]
+    },
+    "summary": {
+      "totalCompletedCampaigns": 3,
+      "totalPotentialCampaigns": 8,
+      "totalInProgressCampaigns": 1
+    }
+  }
+}
+```
+
+**Açıklama:** Kullanıcının segmentine uygun tüm geçmiş kampanyalara katılmış olsaydı kazanacağı potansiyel ödül ile gerçekte kazandığı ödül arasındaki farkı analiz eder.
+
 ### Error Responses
 
 Tüm hatalar standart format ile döner:

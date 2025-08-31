@@ -299,3 +299,24 @@ exports.updatePurchaseStatus = async (req, res) => {
     });
   }
 };
+
+// ✅ YENİ: Kullanıcının segmentine göre potansiyel kazanç analizi
+exports.getUserSegmentEarningsAnalysis = async (req, res) => {
+  try {
+    const data = await campaignService.getUserSegmentEarningsAnalysis(req);
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "User segment earnings analysis retrieved successfully",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};

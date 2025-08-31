@@ -115,4 +115,11 @@ router.patch(
   controller.campaignController.updatePurchaseStatus
 );
 
+// ✅ YENİ: Kullanıcının segmentine göre potansiyel kazanç analizi
+router.get(
+  "/user/segment-earnings-analysis",
+  middlewares.authMiddleware,
+  controller.campaignController.getUserSegmentEarningsAnalysis
+);
+
 module.exports = { campaign: router };
