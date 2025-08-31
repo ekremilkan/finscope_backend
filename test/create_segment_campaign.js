@@ -36,11 +36,9 @@ async function createSegmentCampaign() {
     const campaignData = {
       title: "Segment Bazlı Test Kampanyası",
       description: "Her segment için farklı ödül değerleri olan test kampanyası",
-      category: "education",
       startDate: "2025-01-20T00:00:00.000Z",
       endDate: "2025-01-25T23:59:59.000Z",
       questions: 5,
-      estimatedDuration: 15,
       // ✅ YENİ: Her segment için farklı ödül değerleri
       rewards: {
         A: 1000,  // A segmenti: 1000 puan
@@ -56,9 +54,7 @@ async function createSegmentCampaign() {
         C: 150,
         D: 200
       },
-      tags: ["test", "segment", "education"],
-      images: [],
-      videoUrl: ""
+      tags: ["test", "segment", "education"]
     };
 
     const createResponse = await axios.post(
@@ -74,7 +70,6 @@ async function createSegmentCampaign() {
       const campaign = createResponse.data.data;
       console.log(`ID: ${campaign._id}`);
       console.log(`Title: ${campaign.title}`);
-      console.log(`Category: ${campaign.category}`);
       console.log(`Status: ${campaign.status}`);
       console.log(`IsActive: ${campaign.isActive}`);
       console.log(`IsAdminAccept: ${campaign.isAdminAccept}`);

@@ -290,19 +290,16 @@ exports.updateProgress = async (req) => {
 // ✅ YENİ: Kampanya oluştur (isAdminAccept kontrolü)
 exports.create = async (req) => {
   const {
-    title, description, content, rewards, reward, maxParticipants, category,
-    startDate, endDate, questions, tags, images,
-    videoUrl, estimatedDuration
+    title, description, content, rewards, maxParticipants,
+    startDate, endDate, questions, tags
   } = req.body;
 
   const createdUserId = req.user.userId;
   const role = req.user.role;
 
   const campaign = new Campaign({
-    title, description, content, rewards, reward, maxParticipants, category,
-    startDate, endDate, questions, tags, images, // Modeldeki 'image' alanı kullanılıyor
-    videoUrl: videoUrl || "", // Modeldeki 'videoUrl' alanı kullanılıyor
-    estimatedDuration: estimatedDuration || 15,
+    title, description, content, rewards, maxParticipants,
+    startDate, endDate, questions, tags,
     createdUserId,
     currentParticipants: {A:0,B:0,C:0,D:0},
     isAdminAccept: role === "admin" ? true : false,
@@ -449,7 +446,7 @@ exports.listCompletedUsers = async (req) => {
   // Progress, user ve campaign bilgilerini topla
   const progresses = await UserProgress.find(filter)
     .populate('userId', 'name email')
-    .populate('campaignId', 'title rewards reward')
+    .populate('campaignId', 'title rewards')
     .lean();
 
   if (!progresses.length) return [];
@@ -482,7 +479,7 @@ exports.listCompletedUsers = async (req) => {
     const airdropWallet = airdropWalletDoc?.address || null;
 
     // Kullanıcının segmentine göre ödül hesapla
-    const segmentReward = p.campaignId.rewards?.[segmentClass] || p.campaignId.reward || 0;
+    const segmentReward = p.campaignId.rewards?.[segmentClass] || 0;
     
     results.push({
       userId: userIdVal,
@@ -493,7 +490,6 @@ exports.listCompletedUsers = async (req) => {
       segment: segmentClass,
       reward: segmentReward,
       segmentReward: p.campaignId.rewards?.[segmentClass] || 0,
-      fallbackReward: p.campaignId.reward || 0,
       isPurchase: !!p.isPurchase,
       airdropWallet,
     });
@@ -561,7 +557,7 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
     userId,
     completed: true,
     campaignId: { $exists: true, $ne: null } // Campaign ID'si null olmayan kayıtlar
-  }).populate('campaignId', 'title rewards reward maxParticipants currentParticipants status isActive isAdminAccept').lean();
+  }).populate('campaignId', 'title rewards maxParticipants currentParticipants status isActive isAdminAccept').lean();
   
   let actualEarnings = 0;
   const completedCampaignDetails = [];
@@ -569,14 +565,13 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
   for (const progress of completedCampaigns) {
     if (progress.campaignId) {
       // Kullanıcının segmentine göre ödül hesapla
-      const segmentReward = progress.campaignId.rewards?.[userSegmentClass] || progress.campaignId.reward || 0;
+      const segmentReward = progress.campaignId.rewards?.[userSegmentClass] || 0;
       actualEarnings += segmentReward;
       completedCampaignDetails.push({
         campaignId: progress.campaignId._id,
         title: progress.campaignId.title,
         reward: segmentReward,
         segmentReward: progress.campaignId.rewards?.[userSegmentClass] || 0,
-        fallbackReward: progress.campaignId.reward || 0,
         completedAt: progress.completedAt
       });
     }
@@ -599,14 +594,13 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
     
     if (segmentMaxParticipants > 0) {
       // Kullanıcının segmentine göre ödül hesapla
-      const segmentReward = campaign.rewards?.[userSegmentClass] || campaign.reward || 0;
+      const segmentReward = campaign.rewards?.[userSegmentClass] || 0;
       potentialEarnings += segmentReward;
       potentialCampaignDetails.push({
         campaignId: campaign._id,
         title: campaign.title,
         reward: segmentReward,
         segmentReward: campaign.rewards?.[userSegmentClass] || 0,
-        fallbackReward: campaign.reward || 0,
         segmentMaxParticipants,
         segmentCurrentParticipants: campaign.currentParticipants[userSegmentClass] || 0,
         endDate: campaign.endDate
@@ -620,19 +614,18 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
     joined: true,
     completed: false,
     campaignId: { $exists: true, $ne: null } // Campaign ID'si null olmayan kayıtlar
-  }).populate('campaignId', 'title rewards reward status isActive isAdminAccept').lean();
+  }).populate('campaignId', 'title rewards status isActive isAdminAccept').lean();
   
   const inProgressCampaigns = [];
   for (const progress of joinedButNotCompleted) {
     if (progress.campaignId) {
       // Kullanıcının segmentine göre ödül hesapla
-      const segmentReward = progress.campaignId.rewards?.[userSegmentClass] || progress.campaignId.reward || 0;
+      const segmentReward = progress.campaignId.rewards?.[userSegmentClass] || 0;
       inProgressCampaigns.push({
         campaignId: progress.campaignId._id,
         title: progress.campaignId.title,
         reward: segmentReward,
         segmentReward: progress.campaignId.rewards?.[userSegmentClass] || 0,
-        fallbackReward: progress.campaignId.reward || 0,
         progress: progress.progress
       });
     }

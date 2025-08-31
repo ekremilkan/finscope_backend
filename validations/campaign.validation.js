@@ -72,14 +72,6 @@ const createCampaignSchema = Joi.object({
   }).required().messages({
     'any.required': 'Segment ödülleri zorunludur'
   }),
-  // ✅ Eski reward alanı (geriye uyumluluk için)
-  reward: Joi.number()
-    .min(0)
-    .default(0)
-    .messages({
-      'number.base': 'Ödül miktarı sayı olmalıdır',
-      'number.min': 'Ödül miktarı 0 veya daha büyük olmalıdır'
-    }),
   maxParticipants: Joi.object({
     A: Joi.number().min(0).default(0),
     B: Joi.number().min(0).default(0),
@@ -93,12 +85,6 @@ const createCampaignSchema = Joi.object({
     C: Joi.number().min(0).default(0),
     D: Joi.number().min(0).default(0)
   }).default({ A:0,B:0,C:0,D:0 }),
-  category: Joi.string()
-    .valid('education', 'technology', 'health', 'finance', 'sports', 'entertainment', 'other')
-    .default('education')
-    .messages({
-      'any.only': 'Geçerli bir kategori seçiniz'
-    }),
   startDate: Joi.date()
     .required()
     .messages({
@@ -120,21 +106,9 @@ const createCampaignSchema = Joi.object({
       'number.base': 'Soru sayısı sayı olmalıdır',
       'number.min': 'Soru sayısı en az 1 olmalıdır'
     }),
-  estimatedDuration: Joi.number()
-    .min(1)
-    .default(15)
-    .messages({
-      'number.base': 'Tahmini süre sayı olmalıdır',
-      'number.min': 'Tahmini süre en az 1 dakika olmalıdır'
-    }),
   questionIds: Joi.array()
     .items(Joi.string().regex(/^[0-9a-fA-F]{24}$/))
     .default([]),
-  images: Joi.array()
-    .items(Joi.string().uri())
-    .max(10)
-    .default([]),
-  videoUrl: Joi.string().uri().allow('', null),
   tags: Joi.array().items(Joi.string()).default([]),
   status: Joi.string().valid('active','inactive','expired','upcoming').default('upcoming'),
   isActive: Joi.boolean().default(true),

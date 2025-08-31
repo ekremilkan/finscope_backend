@@ -62,12 +62,7 @@ const campaignSchema = new mongoose.Schema({
       min: 0,
     },
   },
-  // ✅ Eski reward alanı (geriye uyumluluk için)
-  reward: {
-    type: Number,
-    default: 0,
-    min: 0,
-  },
+
   maxParticipants: {
     A: {
       type: Number,
@@ -113,19 +108,7 @@ const campaignSchema = new mongoose.Schema({
       min: 0,
     },
   },
-  category: {
-    type: String,
-    default: "education",
-    enum: [
-      "education",
-      "technology",
-      "health",
-      "finance",
-      "sports",
-      "entertainment",
-      "other",
-    ],
-  },
+
   startDate: {
     type: Date,
     required: true,
@@ -139,12 +122,6 @@ const campaignSchema = new mongoose.Schema({
     default: 5,
     min: 1,
   },
-  // ✅ YENİ: Tahmini süre (dakika)
-  estimatedDuration: {
-    type: Number,
-    default: 15,
-    min: 1,
-  },
   // Kampanyaya ait soruların ID'leri
   questionIds: [
     {
@@ -153,12 +130,6 @@ const campaignSchema = new mongoose.Schema({
       default: [],
     },
   ],
-  images: { type: [String], default: [] },
-  // ✅ YENİ: Video URL'i (eski videoLink yerine)
-  videoUrl: {
-    type: String,
-    default: "",
-  },
   tags: {
     type: [String],
     default: [],
