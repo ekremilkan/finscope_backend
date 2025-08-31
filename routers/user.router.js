@@ -79,4 +79,10 @@ router.get(
   controller.userController.getTotalUserCount
 );
 
+router.get(
+  "/joined-campaigns",
+  middlewares.authMiddleware,
+  controller.userController.getUserJoinedCampaigns
+);
+
 module.exports = { user: router };

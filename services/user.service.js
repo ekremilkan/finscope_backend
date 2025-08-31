@@ -1,7 +1,9 @@
 const User = require("../models/user.model");
+const CampaignParticipation = require("../models/campaignParticipation.model")
 const utils = require("../utils/index");
 const bcrypt = require("bcryptjs");
 const { StatusCodes } = require("http-status-codes");
+
 
 exports.register = async (req) => {
   const { name, email, password, role } = req.body;
@@ -247,6 +249,7 @@ exports.getUserByName = async (req) => {
 };
 
 exports.updateUserName = async (req) => {
+  console.log('GELEN İSTEĞİN BODY\'Sİ:', req.body);
   const { userId } = req.params;
   const { newName } = req.body;
 
@@ -416,4 +419,34 @@ exports.refreshAccessToken = async (req) => {
 exports.getTotalUserCount = async () => {
   const totalUsers = await User.countDocuments({});
   return { totalUsers };
+};
+
+exports.getUserJoinedCampaigns = async (req) => {
+  const { userId } = req.user;
+
+  // 1. CampaignParticipation koleksiyonundan kullanıcının tüm katılımlarını bul.
+  // 'populate', bulduğu katılımlardaki 'campaignId'yi kullanarak Campaign koleksiyonundan
+  // ilgili kampanyanın tüm detaylarını (başlık, ödül vb.) otomatik olarak çeker.
+  const participations = await CampaignParticipation.find({ userId })
+    .populate('campaignId') // Campaign detaylarını getirmek için
+    .lean();
+
+  // Eğer kullanıcı hiçbir kampanyaya katılmamışsa, boş dizi döndür.
+  if (!participations || participations.length === 0) {
+    return [];
+  }
+
+  // 2. Frontend'in beklediği formata dönüştür.
+  const result = participations.map(p => {
+    // Silinmiş bir kampanyaya ait katılım kaydı kalmışsa, onu atla.
+    if (!p.campaignId) return null;
+
+    return {
+      ...p.campaignId,        // Kampanyanın tüm alanlarını buraya kopyala (title, reward, vb.)
+      userStatus: p.status,   // Katılım durumunu 'userStatus' olarak ekle (completed, active, vb.)
+      completedAt: p.completedAt,
+    };
+  }).filter(Boolean); // Null olan kayıtları temizle.
+
+  return result;
 };

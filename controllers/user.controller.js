@@ -292,3 +292,16 @@ exports.getTotalUserCount = async (req, res) => {
     });
   }
 };
+
+exports.getUserJoinedCampaigns = async (req, res, next) => {
+  try {
+    const data = await userService.user.getUserJoinedCampaigns(req);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data,
+      message: "User's joined campaigns retrieved successfully.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
