@@ -152,45 +152,42 @@ exports.resendVerificationCode = async (req) => {
 };
 
 exports.verifyLogin = async (req) => {
+  console.log("Gelen Doğrulama İsteği:", req.body);
   const { email, verificationCode } = req.body;
-  const user = await User.findOne({ email, verificationCode });
 
-  // Kod yanlış veya kullanıcı bulunamadı
-  if (!user) {
+  // 1. ADIM: Önce kullanıcıyı SADECE e-posta adresiyle bul.
+  const user = await User.findOne({ email });
+
+  // 2. ADIM: Kullanıcı bulunamadıysa veya bulunan kullanıcının kodu eşleşmiyorsa hata ver.
+  // Bu kontrol, hangi durumda hata olduğunu netleştirir.
+  if (!user || user.verificationCode !== verificationCode) {
     const err = new Error("Invalid verification code or email.");
     err.statusCode = StatusCodes.UNAUTHORIZED;
     throw err;
   }
 
-  // Kodun süresi dolmuş mu kontrol et
+  // 3. ADIM (Mevcut kodunuzdan): Kodun süresi dolmuş mu kontrol et.
   if (user.verificationCodeExpiresAt < new Date()) {
-    // Süresi dolan kodu temizle
     user.verificationCode = null;
     user.verificationCodeExpiresAt = null;
     await user.save();
 
-    const err = new Error(
-      "Verification code has expired. Please login again."
-    );
+    const err = new Error("Verification code has expired. Please login again.");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
 
   // --- Başarılı Doğrulama ---
+  // (Kodun geri kalanı sizinkinde olduğu gibi aynı kalıyor)
 
-  // Giriş denemelerini sıfırla (eğer varsa)
   if (user.loginAttempts && user.loginAttempts > 0) {
     await user.resetLoginAttempts();
   }
 
-  // ✅ YENİ: Kullanıcıyı doğrulanmış olarak işaretle
   user.isVerified = true;
-
-  // Token'ları oluştur
   const token = user.generateAccessToken();
   const refreshToken = utils.helper.createRefreshToken(user);
 
-  // Doğrulama kodunu temizle ve refresh token'ı kaydet
   user.verificationCode = null;
   user.verificationCodeExpiresAt = null;
   user.refreshToken = refreshToken;
