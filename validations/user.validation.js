@@ -29,15 +29,13 @@ const registerSchema = Joi.object({
     }),
 
   password: Joi.string()
-    .length(6)
-    .pattern(/^[0-9]{6}$/)
-    .required()
+    .required() 
     .messages({
-      "string.length": "Şifre 6 haneli olmalıdır",
-      "string.pattern.base": "Şifre sadece rakamlardan oluşmalıdır",
+      "string.max": "Şifre en fazla 16 karakter olabilir",
       "string.empty": "Şifre boş olamaz",
       "any.required": "Şifre zorunludur",
     }),
+  
 
   role: Joi.string()
     .valid("customer", "user", "admin")
@@ -228,16 +226,16 @@ const validateResetPassword = (req, res, next) => {
         "string.pattern.base": "Kod sadece rakamlardan oluşmalıdır.",
         "any.required": "Kod zorunludur.",
       }),
+      
+    
     newPassword: Joi.string()
-      .length(6)
-      .pattern(/^[0-9]{6}$/)
-      .required()
+      .required() 
       .messages({
-        "string.length": "Yeni şifre 6 haneli olmalıdır",
-        "string.pattern.base": "Yeni şifre sadece rakamlardan oluşmalıdır",
+        "string.max": "Yeni şifre en fazla 16 karakter olabilir",
         "string.empty": "Yeni şifre boş olamaz",
         "any.required": "Yeni şifre zorunludur.",
       }),
+    
   });
 
   const { error } = schema.validate(req.body);

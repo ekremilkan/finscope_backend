@@ -28,15 +28,18 @@ const sendEmail = async ({ to, subject, text, html }) => {
 };
 
 const sendVerificationCode = async (to, code) => {
-  const subject = "Giriş Doğrulama Kodunuz";
-  const text = `Uygulamaya giriş yapmak için doğrulama kodunuz: ${code}. Bu kod 10 dakika boyunca geçerlidir.`;
+  const subject = "Your Login Verification Code";
+  const text = `Your verification code to log in to the application is: ${code}. This code is valid for 10 minutes.`;
   const html = `
-    <div style="font-family: Arial, sans-serif; text-align: center; color: #333;">
-      <h2>Giriş Doğrulama</h2>
-      <p>Uygulamaya giriş yapmak için aşağıdaki kodu kullanın:</p>
-      <p style="font-size: 24px; font-weight: bold; letter-spacing: 5px; background-color: #f0f0f0; padding: 10px; border-radius: 5px;">${code}</p>
-      <p>Bu kod 10 dakika boyunca geçerlidir.</p>
-      <p>Eğer bu işlemi siz yapmadıysanız, lütfen hesabınızın güvenliğini kontrol edin.</p>
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; text-align: center;">
+      <h2 style="color: #1a1a1a;">Login Verification</h2>
+      <p>Please use the code below to log in to your account. This code is valid for 10 minutes.</p>
+      <div style="text-align: center; margin: 20px 0;">
+        <span style="display: inline-block; font-size: 28px; font-weight: bold; letter-spacing: 5px; padding: 15px 25px; background-color: #f0f0f0; border-radius: 8px; color: #1a1a1a;">
+          ${code}
+        </span>
+      </div>
+      <p>If you did not request this code, please secure your account.</p>
     </div>
   `;
 
@@ -47,3 +50,4 @@ module.exports = {
   sendEmail,
   sendVerificationCode,
 };
+
