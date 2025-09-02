@@ -135,8 +135,9 @@ exports.joinCampaign = async (req) => {
     throw err;
   }
 
-  const existingProgress = await UserProgress.findOne({ userId, campaignId });
-  const existingParticipation = await CampaignParticipation.findOne({ userId, campaignId });
+  // Katılım ve ilerleme durumunu kontrol et
+  const existingProgress = await UserProgress.findOne({ userId, campaignId });
+  const existingParticipation = await CampaignParticipation.findOne({ userId, campaignId });
 
   // --- 2. Tamamlama Kontrolü (En Yüksek Öncelik) ---
   if (existingProgress && existingProgress.completed) {
@@ -145,79 +146,69 @@ exports.joinCampaign = async (req) => {
     throw err;
   }
 
-  // --- 3. Normal Kullanıcılar için Segment ve Kontenjan Kontrolü ---
-  let userSegment;
-  if (role !== 'admin') {
-    const preferredWindow = `${process.env.SEGMENT_WINDOW_DAYS || 90}d`;
-    let segDoc = await UserSegment.findOne({ userId, chain: "ethereum", window: preferredWindow }).lean();
-    if (!segDoc) {
-      segDoc = await UserSegment.findOne({ userId, chain: "ethereum" }).sort({ asOf: -1 }).lean();
-    }
-    userSegment = segDoc?.class;
+  // --- 3. Genel Kontenjan Kontrolü (Segmentasyon Kaldırıldı) ---
+  // Bu kontrol sadece kullanıcı ilk defa katılıyorsa ve admin değilse yapılır.
+  if (role !== 'admin' && !existingParticipation) {
+    // Not: Campaign modelinizde toplam katılımcı limiti için `maxTotalParticipants`
+    // gibi bir alan olduğunu varsayıyoruz. Alan adı farklıysa güncelleyiniz.
+    const maxTotal = campaign.maxTotalParticipants || 0;
+    const currentTotal = campaign.participants || 0;
 
-    if (!['A','B','C','D'].includes(userSegment)) {
-      const err = new Error("User segment not found. Please try again after the segment has been recalculated.");
-      err.statusCode = StatusCodes.BAD_REQUEST;
-      throw err;
-    }
-
-    // Kontenjan kontrolü sadece kullanıcı ilk defa katılıyorsa yapılır.
-    if (!existingParticipation) {
-        const maxSeg = campaign.maxParticipants[userSegment] || 0;
-        const curSeg = campaign.currentParticipants[userSegment] || 0;
-        if (curSeg >= maxSeg) {
-          const err = new Error(`The quota for campaign segment ${userSegment} is full.`);
-          err.statusCode = StatusCodes.BAD_REQUEST;
-          throw err;
-        }
+    // Eğer bir limit varsa (maxTotal > 0) ve bu limite ulaşıldıysa hata döndür.
+    if (maxTotal > 0 && currentTotal >= maxTotal) {
+      const err = new Error("The campaign quota is full.");
+      err.statusCode = StatusCodes.BAD_REQUEST;
+      throw err;
     }
   }
 
-  // --- 4. UserProgress Kaydını Oluştur veya Sıfırla ---
-  // Kullanıcı ister ilk defa katılsın, isterse yarım bıraktığı quize devam etsin,
-  // bu blok çalışarak quizi en baştan başlatır.
-  if (existingProgress) {
-    // Kayıt varsa, ilerlemeyi sıfırla
-    existingProgress.joined = true;
-    existingProgress.startedAt = new Date();
-    existingProgress.progress = {
-      currentQuestion: 0,
-      totalQuestions: campaign.questions.length, // Soru sayısını campaign'den al
-      answeredQuestions: [],
-      correctAnswers: 0,
-      wrongAnswers: 0,
-      lastActivity: new Date()
-    };
-    await existingProgress.save();
-  } else {
-    // Kayıt yoksa, yeni kayıt oluştur
-    await UserProgress.create({
-      userId,
-      campaignId,
-      joined: true,
-      startedAt: new Date(),
-      progress: {
-        totalQuestions: campaign.questions.length,
-      }
-    });
-  }
+  // --- 4. UserProgress Kaydını Oluştur veya Sıfırla ---
+  // Kullanıcı ister ilk defa katılsın, isterse yarım bıraktığı quize devam etsin,
+  // bu blok çalışarak quizi en baştan başlatır.
+  if (existingProgress) {
+    // Kayıt varsa, ilerlemeyi sıfırla
+    existingProgress.joined = true;
+    existingProgress.startedAt = new Date();
+    existingProgress.progress = {
+      currentQuestion: 0,
+      totalQuestions: campaign.questions.length,
+      answeredQuestions: [],
+      correctAnswers: 0,
+      wrongAnswers: 0,
+      lastActivity: new Date()
+    };
+    await existingProgress.save();
+  } else {
+    // Kayıt yoksa, yeni kayıt oluştur
+    await UserProgress.create({
+      userId,
+      campaignId,
+      joined: true,
+      startedAt: new Date(),
+      progress: {
+        totalQuestions: campaign.questions.length,
+      }
+    });
+  }
 
-  // --- 5. Katılım Kaydını ve Sayacı SADECE İLK GİRİŞTE Oluştur/Güncelle ---
-  // Bu blok, duplicate hatasını engeller ve sayacın sadece bir kez artmasını sağlar.
-  if (!existingParticipation) {
-    await CampaignParticipation.create({ campaignId, userId, joinedAt: new Date() });
-    
-    if (role === 'admin') {
-        campaign.currentParticipants.admin = (campaign.currentParticipants.admin || 0) + 1;
-    } else {
-        campaign.currentParticipants[userSegment] = (campaign.currentParticipants[userSegment] || 0) + 1;
-    }
-    
-    campaign.participants = Object.values(campaign.currentParticipants).reduce((a, b) => a + b, 0);
-    await campaign.save();
-  }
+  // --- 5. Katılım Kaydını ve Sayacı SADECE İLK GİRİŞTE Oluştur/Güncelle ---
+  // Bu blok, duplicate hatasını engeller ve sayacın sadece bir kez artmasını sağlar.
+  if (!existingParticipation) {
+    await CampaignParticipation.create({ campaignId, userId, joinedAt: new Date() });
+    
+    if (role === 'admin') {
+      campaign.currentParticipants.admin = (campaign.currentParticipants.admin || 0) + 1;
+    } else {
+      // Segmentasyon olmadığı için tüm normal kullanıcıları 'public' altında sayıyoruz.
+      campaign.currentParticipants.public = (campaign.currentParticipants.public || 0) + 1;
+    }
+    
+    // Toplam katılımcı sayısını tüm grupların toplamından hesapla
+    campaign.participants = Object.values(campaign.currentParticipants).reduce((a, b) => a + b, 0);
+    await campaign.save();
+  }
 
-  // --- 6. Başarılı Cevap Döndür ---
+  // --- 6. Başarılı Cevap Döndür ---
   return {
     campaignId,
     userId: userId.toString(),
