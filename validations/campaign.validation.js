@@ -78,6 +78,8 @@ const createCampaignSchema = Joi.object({
     C: Joi.number().min(0).default(0),
     D: Joi.number().min(0).default(0)
   }).default({ A:0,B:0,C:0,D:0 }),
+  // ✅ YENİ: Toplam maksimum katılımcı sayısı
+  maxTotalParticipants: Joi.number().min(0).default(0).allow(null),
   // currentParticipants uygulama tarafından yönetilir; istemciden gelirse yok sayılacaktır
   currentParticipants: Joi.object({
     A: Joi.number().min(0).default(0),
@@ -110,6 +112,34 @@ const createCampaignSchema = Joi.object({
     .items(Joi.string().regex(/^[0-9a-fA-F]{24}$/))
     .default([]),
   tags: Joi.array().items(Joi.string()).default([]),
+  // ✅ YENİ: Şirket logosu (zorunlu)
+  company_logo: Joi.string()
+    .required()
+    .messages({
+      'string.empty': 'Şirket logosu boş olamaz',
+      'any.required': 'Şirket logosu zorunludur'
+    })
+    .custom((value, helpers) => {
+      // URL veya base64 format kontrolü
+      if (!/^https?:\/\/.+/.test(value) && !value.startsWith('data:image/')) {
+        return helpers.error('any.invalid');
+      }
+      return value;
+    }, 'Geçerli bir resim URL\'si veya base64 string giriniz'),
+  // ✅ YENİ: Twitter URL (zorunlu)
+  twitter_url: Joi.string()
+    .required()
+    .messages({
+      'string.empty': 'Twitter URL\'si boş olamaz',
+      'any.required': 'Twitter URL\'si zorunludur'
+    })
+    .custom((value, helpers) => {
+      // Twitter URL format kontrolü
+      if (!/^https?:\/\/(www\.)?(twitter\.com|x\.com)\/.+/.test(value)) {
+        return helpers.error('any.invalid');
+      }
+      return value;
+    }, 'Geçerli bir Twitter URL\'si giriniz (twitter.com veya x.com)'),
   status: Joi.string().valid('active','inactive','expired','upcoming').default('upcoming'),
   isActive: Joi.boolean().default(true),
   isAdminAccept: Joi.forbidden().messages({
@@ -118,7 +148,109 @@ const createCampaignSchema = Joi.object({
   // createdUserId uygulama tarafından auth üzerinden set edilir; istemci gönderemez
   createdUserId: Joi.forbidden().messages({
     'any.unknown': 'createdUserId istemci tarafından gönderilemez'
-  })
+  }),
+  // ✅ YENİ: Segmentasyon kriterleri - opsiyonel alanlar
+  segmentation: Joi.object({
+    // Genel Portföy
+    portfolioFilters: Joi.object({
+      minTotalValueUsd: Joi.number().min(0).allow(null),
+      minTokenCount: Joi.number().min(0).allow(null),
+      minChainValues: Joi.array().items(
+        Joi.object({
+          chain: Joi.string().valid("eth", "bsc", "polygon", "arbitrum", "optimism", "base").allow(null),
+          minValueUsd: Joi.number().min(0).allow(null)
+        })
+      ).allow(null),
+      minTokenHoldings: Joi.array().items(
+        Joi.object({
+          symbol: Joi.string().valid("ETH", "USDC", "UNI", "COMP", "FET", "MATIC", "BNB").allow(null),
+          minAmount: Joi.number().min(0).allow(null)
+        })
+      ).allow(null),
+      diversification: Joi.object({
+        maxHHI: Joi.number().min(0).allow(null),
+        maxTop5Concentration: Joi.number().min(0).max(100).allow(null),
+        riskScore: Joi.string().valid("LOW", "MEDIUM", "HIGH").allow(null)
+      }).allow(null),
+      minNativeBalances: Joi.array().items(
+        Joi.object({
+          chain: Joi.string().valid("eth", "bsc", "polygon", "arbitrum", "optimism", "base").allow(null),
+          symbol: Joi.string().valid("ETH", "BNB", "MATIC").allow(null),
+          minAmount: Joi.number().min(0).allow(null)
+        })
+      ).allow(null)
+    }).allow(null),
+
+    // Token Dağılımı
+    tokenCategoryPercentage: Joi.array().items(
+      Joi.object({
+        category: Joi.string().valid(
+          "dex", "stablecoin", "layer1", "layer2", "lending_protocol", "ai", 
+          "gamefi", "liquid_staking", "meme_token", "oracle", "restaking", 
+          "bridge", "yield_farming", "infrastructure", "alt"
+        ).allow(null),
+        minPercent: Joi.number().min(0).max(100).allow(null),
+        maxPercent: Joi.number().min(0).max(100).allow(null)
+      })
+    ).allow(null),
+
+    // DeFi Aktivitesi
+    minDefiTvlUsd: Joi.number().min(0).default(0).allow(null),
+    defiProtocols: Joi.array().items(
+      Joi.object({
+        protocol: Joi.string().valid("compound", "aave", "lido", "uniswap_v3", "sushiswap").allow(null),
+        type: Joi.string().valid("supplied", "borrowed", "liquidity", "staked").allow(null),
+        minUsdValue: Joi.number().min(0).allow(null)
+      })
+    ).allow(null),
+
+    // Trading Aktivitesi
+    minTrades: Joi.number().min(0).default(0).allow(null),
+    minTradingVolumeUsd: Joi.number().min(0).default(0).allow(null),
+    requiredDexes: Joi.array().items(
+      Joi.string().valid("uniswap_v3", "sushiswap", "pancakeswap", "1inch")
+    ).allow(null),
+    pnlFilters: Joi.array().items(
+      Joi.object({
+        chain: Joi.string().valid("eth", "bsc", "polygon", "arbitrum", "optimism", "base").allow(null),
+        period: Joi.string().valid("7d", "30d", "90d").allow(null),
+        minRoiPercent: Joi.number().allow(null)
+      })
+    ).allow(null),
+
+    // NFT Portföyü
+    requiredNftCollections: Joi.array().items(Joi.string()).allow(null),
+    minBlueChipNfts: Joi.number().min(0).default(0).allow(null),
+
+    // Davranışsal Skorlar
+    riskTolerance: Joi.string().valid("LOW", "MEDIUM", "HIGH").allow(null),
+    handsClassification: Joi.string().valid("PAPER_HANDS", "DIAMOND_HANDS").allow(null),
+    behavioralScores: Joi.object({
+      minHodlScore: Joi.number().min(0).max(100).allow(null),
+      minTraderScore: Joi.number().min(0).max(100).allow(null),
+      minSophisticationScore: Joi.number().min(0).max(100).allow(null),
+      minDiamondHandsScore: Joi.number().min(0).max(100).allow(null)
+    }).allow(null),
+
+    // Güvenlik
+    security: Joi.object({
+      maxUnlimitedApprovals: Joi.number().min(0).allow(null),
+      maxHighRiskApprovals: Joi.number().min(0).allow(null)
+    }).allow(null),
+
+    // Wallet Classifications
+    walletClassifications: Joi.array().items(
+      Joi.string().valid(
+        "Plankton (<0.01 BTC)", "Shrimp (<1 BTC)", "Crab (1–10 BTC)", 
+        "Octopus (10–50 BTC)", "Fish (50–100 BTC)", "Dolphin (100–500 BTC)", 
+        "Shark (500–1,000 BTC)", "Whale (1,000–5,000 BTC)", "Humpback (>5,000 BTC)", 
+        "Early Retail (<$10k, pre-2020)", "Early Professional ($10k–$10M, pre-2020)", 
+        "Early Institutional (>$10M, pre-2020)", "Late Retail (<$10k, post-2020)", 
+        "Late Professional ($10k–$10M, post-2020)", "Late Institutional (>$10M, post-2020)", 
+        "Custom"
+      )
+    ).allow(null)
+  }).allow(null)
 });
 
 // Kampanya güncelleme validation şeması

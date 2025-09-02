@@ -146,11 +146,9 @@ exports.joinCampaign = async (req) => {
     throw err;
   }
 
-  // --- 3. Genel Kontenjan Kontrolü (Segmentasyon Kaldırıldı) ---
+    // --- 3. Genel Kontenjan Kontrolü ---
   // Bu kontrol sadece kullanıcı ilk defa katılıyorsa ve admin değilse yapılır.
-  if (role !== 'admin' && !existingParticipation) {
-    // Not: Campaign modelinizde toplam katılımcı limiti için `maxTotalParticipants`
-    // gibi bir alan olduğunu varsayıyoruz. Alan adı farklıysa güncelleyiniz.
+  if (role !== 'admin' && !existingParticipation) {
     const maxTotal = campaign.maxTotalParticipants || 0;
     const currentTotal = campaign.participants || 0;
 
@@ -191,22 +189,37 @@ exports.joinCampaign = async (req) => {
     });
   }
 
-  // --- 5. Katılım Kaydını ve Sayacı SADECE İLK GİRİŞTE Oluştur/Güncelle ---
-  // Bu blok, duplicate hatasını engeller ve sayacın sadece bir kez artmasını sağlar.
-  if (!existingParticipation) {
-    await CampaignParticipation.create({ campaignId, userId, joinedAt: new Date() });
-    
-    if (role === 'admin') {
-      campaign.currentParticipants.admin = (campaign.currentParticipants.admin || 0) + 1;
-    } else {
-      // Segmentasyon olmadığı için tüm normal kullanıcıları 'public' altında sayıyoruz.
-      campaign.currentParticipants.public = (campaign.currentParticipants.public || 0) + 1;
-    }
-    
-    // Toplam katılımcı sayısını tüm grupların toplamından hesapla
-    campaign.participants = Object.values(campaign.currentParticipants).reduce((a, b) => a + b, 0);
-    await campaign.save();
-  }
+    // --- 5. Katılım Kaydını ve Sayacı SADECE İLK GİRİŞTE Oluştur/Güncelle ---
+  // Bu blok, duplicate hatasını engeller ve sayacın sadece bir kez artmasını sağlar.
+  if (!existingParticipation) {
+    await CampaignParticipation.create({ campaignId, userId, joinedAt: new Date() });
+    
+    // Kullanıcının segmentini belirle (varsayılan olarak D segmenti)
+    // Bu kısım daha sonra gerçek segment hesaplama ile değiştirilebilir
+    const userSegment = 'D'; // Geçici olarak D segmenti
+    
+    // Segment bazlı katılımcı sayısını artır
+    if (campaign.currentParticipants[userSegment] !== undefined) {
+      campaign.currentParticipants[userSegment] += 1;
+    }
+    
+    // Toplam katılımcı sayısını güncelle
+    campaign.participants = Object.values(campaign.currentParticipants).reduce((a, b) => a + b, 0);
+    
+    // ✅ YENİ: maxTotalParticipants kontrolü
+    if (campaign.maxTotalParticipants > 0 && campaign.participants > campaign.maxTotalParticipants) {
+      // Eğer limit aşıldıysa, son katılımı geri al
+      campaign.currentParticipants[userSegment] -= 1;
+      campaign.participants = Object.values(campaign.currentParticipants).reduce((a, b) => a + b, 0);
+      await campaign.save();
+      
+      const err = new Error("Campaign quota exceeded for this segment.");
+      err.statusCode = StatusCodes.BAD_REQUEST;
+      throw err;
+    }
+    
+    await campaign.save();
+  }
 
   // --- 6. Başarılı Cevap Döndür ---
   return {
@@ -281,16 +294,16 @@ exports.updateProgress = async (req) => {
 // ✅ YENİ: Kampanya oluştur (isAdminAccept kontrolü)
 exports.create = async (req) => {
   const {
-    title, description, content, rewards, maxParticipants,
-    startDate, endDate, questions, tags
+    title, description, content, rewards, maxParticipants, maxTotalParticipants,
+    startDate, endDate, questions, tags, segmentation, company_logo, twitter_url
   } = req.body;
 
   const createdUserId = req.user.userId;
   const role = req.user.role;
 
   const campaign = new Campaign({
-    title, description, content, rewards, maxParticipants,
-    startDate, endDate, questions, tags,
+    title, description, content, rewards, maxParticipants, maxTotalParticipants,
+    startDate, endDate, questions, tags, segmentation, company_logo, twitter_url,
     createdUserId,
     currentParticipants: {A:0,B:0,C:0,D:0},
     isAdminAccept: role === "admin" ? true : false,
@@ -341,6 +354,13 @@ exports.update = async (req) => {
   // createdUserId değiştirilemez
   if (typeof req.body.createdUserId !== 'undefined') {
     delete req.body.createdUserId;
+  }
+
+  // ✅ YENİ: maxTotalParticipants güncellenirse, participants da güncellensin
+  if (req.body.maxParticipants) {
+    // maxParticipants güncellendiğinde maxTotalParticipants'ı da güncelle
+    const totalMax = Object.values(req.body.maxParticipants).reduce((sum, count) => sum + count, 0);
+    req.body.maxTotalParticipants = totalMax;
   }
 
   // Admin herhangi bir kampanyayı güncelleyebilir; müşteri sadece kendisininkini

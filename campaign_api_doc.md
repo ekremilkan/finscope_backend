@@ -82,37 +82,48 @@ Content-Type: application/json
 {
   "title": "Blockchain Eğitimi",
   "description": "Blockchain teknolojilerini öğrenin",
-  "content": "Detaylı eğitim içeriği burada yer alacak...",
-  "reward": 100,
-  "maxParticipants": 50,
-  "category": "education",
-  "difficulty": "Beginner",
+  "content": [
+    {
+      "itemImage": "https://example.com/image1.jpg",
+      "itemVideo": "https://www.youtube.com/watch?v=example",
+      "itemTitle": "Blockchain Temelleri",
+      "itemDescription": "Blockchain teknolojisinin temel kavramları",
+      "itemIndex": 1
+    }
+  ],
+  "rewards": {
+    "A": 100,
+    "B": 75,
+    "C": 50,
+    "D": 25
+  },
+  "maxParticipants": {
+    "A": 10,
+    "B": 20,
+    "C": 30,
+    "D": 40
+  },
   "startDate": "2024-01-15T00:00:00.000Z",
   "endDate": "2024-02-15T23:59:59.000Z",
   "questions": 5,
-  "estimatedDuration": 20,
-  "imageUrls": [
-    "https://example.com/image1.jpg",
-    "https://example.com/image2.jpg"
-  ],
-  "videoUrl": "https://www.youtube.com/watch?v=example"
+  "tags": ["blockchain", "education"],
+  "company_logo": "https://example.com/logo.png",
+  "twitter_url": "https://twitter.com/company"
 }
 ```
 
 **Validation Kuralları:**
 - `title`: 1-100 karakter, zorunlu
 - `description`: 1-500 karakter, zorunlu
-- `content`: 0-2000 karakter, opsiyonel
-- `reward`: 0+ sayı, zorunlu
-- `maxParticipants`: 1+ sayı, varsayılan 100
-- `category`: education, technology, health, finance, sports, entertainment, other
-- `difficulty`: Beginner, Intermediate, Advanced
+- `content`: Array formatında içerik, opsiyonel
+- `rewards`: Her segment için ödül miktarı (A, B, C, D), zorunlu
+- `maxParticipants`: Her segment için katılımcı limiti (A, B, C, D), opsiyonel
 - `startDate`: Geçerli tarih, zorunlu
 - `endDate`: Geçerli tarih, zorunlu (startDate'den sonra olmalı)
 - `questions`: 1+ sayı, varsayılan 5
-- `estimatedDuration`: 1+ dakika, varsayılan 15
-- `imageUrls`: Maksimum 10 URL
-- `videoUrl`: YouTube, Vimeo vb. geçerli URL
+- `tags`: Array formatında etiketler, opsiyonel
+- `company_logo`: Geçerli resim URL'i veya base64 string, zorunlu
+- `twitter_url`: Geçerli Twitter URL'i (twitter.com veya x.com), zorunlu
 
 **Response:**
 ```json
@@ -124,21 +135,44 @@ Content-Type: application/json
     "_id": "campaign_id",
     "title": "Blockchain Eğitimi",
     "description": "Blockchain teknolojilerini öğrenin",
-    "content": "Detaylı eğitim içeriği...",
-    "reward": 100,
-    "maxParticipants": 50,
+    "content": [
+      {
+        "itemImage": "https://example.com/image1.jpg",
+        "itemVideo": "https://www.youtube.com/watch?v=example",
+        "itemTitle": "Blockchain Temelleri",
+        "itemDescription": "Blockchain teknolojisinin temel kavramları",
+        "itemIndex": 1
+      }
+    ],
+    "rewards": {
+      "A": 100,
+      "B": 75,
+      "C": 50,
+      "D": 25
+    },
+    "maxParticipants": {
+      "A": 10,
+      "B": 20,
+      "C": 30,
+      "D": 40
+    },
+    "currentParticipants": {
+      "A": 0,
+      "B": 0,
+      "C": 0,
+      "D": 0
+    },
     "participants": 0,
-    "currentParticipants": 0,
-    "category": "education",
-    "difficulty": "Beginner",
+    "maxTotalParticipants": 100,
     "startDate": "2024-01-15T00:00:00.000Z",
     "endDate": "2024-02-15T23:59:59.000Z",
     "questions": 5,
-    "estimatedDuration": 20,
-    "imageUrls": ["https://example.com/image1.jpg"],
-    "videoUrl": "https://www.youtube.com/watch?v=example",
+    "tags": ["blockchain", "education"],
+    "company_logo": "https://example.com/logo.png",
+    "twitter_url": "https://twitter.com/company",
     "isActive": true,
-    "createdBy": "user_id",
+    "isAdminAccept": false,
+    "createdUserId": "user_id",
     "createdAt": "2024-01-10T10:00:00.000Z",
     "updatedAt": "2024-01-10T10:00:00.000Z"
   },
