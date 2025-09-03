@@ -4,6 +4,7 @@ const User = require("../models/user.model");
 const Wallet = require("../models/wallet.model");
 const { ChartJSNodeCanvas } = require("chartjs-node-canvas");
 const mongoose = require("mongoose");
+const WEBAPP_URL = "https://finscope.app";
 
 // Zaman dilimi: İstanbul
 const TZ = "Europe/Istanbul";
@@ -398,6 +399,19 @@ bot.command("health", async (ctx) => {
     console.error("health error:", err);
     await ctx.reply("Üzgünüm, health raporu alınamadı.");
   }
+});
+
+// /open -> FinScope mini app'i Telegram içinde aç
+bot.command("open", async (ctx) => {
+  if (!isAllowedChat(ctx.chat?.id)) return;
+
+  await ctx.reply("FinScope Mini App’i açmak için butona tıkla:", {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "🔗 FinScope.app’i Aç", web_app: { url: WEBAPP_URL } }],
+      ],
+    },
+  });
 });
 
 /** Metin mesajı örneği (privacy off ise) */
