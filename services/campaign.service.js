@@ -19,7 +19,7 @@ const updateCampaignQuestionCount = async (campaignId) => {
 exports.completeQuiz = async (req) => {
   const { id: campaignId } = req.params;
   const userId = req.user.userId;
-  const { totalTimeSpent, score, questionsAnswered, totalQuestions } = req.body;
+  const { totalTimeSpent } = req.body;
 
   const userProgress = await UserProgress.findOne({ userId, campaignId });
   if (!userProgress || !userProgress.joined) {
@@ -34,32 +34,12 @@ exports.completeQuiz = async (req) => {
     throw err;
   }
 
-  if (score !== 100) {
-    const err = new Error("All questions must be answered correctly to complete the quiz.");
-    err.statusCode = StatusCodes.BAD_REQUEST;
-    throw err;
-  }
-
-  if (questionsAnswered !== totalQuestions) {
-    const err = new Error("All questions must be answered to complete the quiz.");
-    err.statusCode = StatusCodes.BAD_REQUEST;
-    throw err;
-  }
 
   const updatedUserProgress = await UserProgress.findByIdAndUpdate(
     userProgress._id,
     {
       completed: true,
-      score: 100,
       timeSpent: totalTimeSpent,
-      progress: {
-        ...userProgress.progress,
-        currentQuestion: totalQuestions,
-        answeredQuestions: Array.from({ length: totalQuestions }, (_, i) => i),
-        correctAnswers: totalQuestions,
-        wrongAnswers: 0,
-        lastActivity: new Date()
-      },
       completedAt: new Date()
     },
     { new: true }
@@ -68,7 +48,6 @@ exports.completeQuiz = async (req) => {
   await CampaignParticipation.findOneAndUpdate(
     { userId, campaignId },
     {
-      score: 100,
       timeSpent: totalTimeSpent,
       status: 'completed',
       completedAt: new Date()
@@ -80,7 +59,6 @@ exports.completeQuiz = async (req) => {
     userId: userId.toString(),
     completed: true,
     completedAt: updatedUserProgress.completedAt,
-    score: 100,
     totalTimeSpent
   };
 };
@@ -98,16 +76,7 @@ exports.getUserProgress = async (req) => {
       userId: userId.toString(),
       joined: false,
       completed: false,
-      score: null,
       timeSpent: 0,
-      progress: {
-        currentQuestion: 0,
-        totalQuestions: 0,
-        answeredQuestions: [],
-        correctAnswers: 0,
-        wrongAnswers: 0,
-        lastActivity: null
-      },
       startedAt: null,
       completedAt: null
     };
@@ -167,14 +136,6 @@ exports.joinCampaign = async (req) => {
     // Kayıt varsa, ilerlemeyi sıfırla
     existingProgress.joined = true;
     existingProgress.startedAt = new Date();
-    existingProgress.progress = {
-      currentQuestion: 0,
-      totalQuestions: campaign.questions.length,
-      answeredQuestions: [],
-      correctAnswers: 0,
-      wrongAnswers: 0,
-      lastActivity: new Date()
-    };
     await existingProgress.save();
   } else {
     // Kayıt yoksa, yeni kayıt oluştur
@@ -183,9 +144,6 @@ exports.joinCampaign = async (req) => {
       campaignId,
       joined: true,
       startedAt: new Date(),
-      progress: {
-        totalQuestions: campaign.questions.length,
-      }
     });
   }
 
@@ -243,30 +201,11 @@ exports.updateProgress = async (req) => {
     throw err;
   }
 
-  const currentQuestion = userProgress.progress.currentQuestion;
-  const totalQuestions = userProgress.progress.totalQuestions;
-
-  const newProgress = {
-    currentQuestion: isCorrect ? currentQuestion + 1 : currentQuestion,
-    totalQuestions,
-    answeredQuestions: isCorrect
-      ? [...userProgress.progress.answeredQuestions, currentQuestion]
-      : userProgress.progress.answeredQuestions,
-    correctAnswers: userProgress.progress.correctAnswers + (isCorrect ? 1 : 0),
-    wrongAnswers: userProgress.progress.wrongAnswers + (isCorrect ? 0 : 1),
-    lastActivity: new Date()
-  };
-
-  const newScore = newProgress.correctAnswers === totalQuestions ? 100 : null;
-  const newCompleted = newScore === 100;
-
   const updatedUserProgress = await UserProgress.findByIdAndUpdate(
     userProgress._id,
     {
-      score: newScore,
       completed: newCompleted,
       timeSpent: userProgress.timeSpent + timeSpent,
-      progress: newProgress,
       completedAt: newCompleted ? new Date() : null
     },
     { new: true }
@@ -275,7 +214,7 @@ exports.updateProgress = async (req) => {
   await CampaignParticipation.findOneAndUpdate(
     { userId, campaignId },
     {
-      score: newScore,
+      score: newCompleted ? 100 : 0,
       timeSpent: updatedUserProgress.timeSpent,
       status: newCompleted ? 'completed' : 'active',
       completedAt: newCompleted ? new Date() : null
@@ -285,8 +224,6 @@ exports.updateProgress = async (req) => {
   return {
     campaignId,
     userId: userId.toString(),
-    progress: newProgress,
-    score: newScore,
     completed: newCompleted
   };
 };
@@ -637,7 +574,6 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
         title: progress.campaignId.title,
         reward: segmentReward,
         segmentReward: progress.campaignId.rewards?.[userSegmentClass] || 0,
-        progress: progress.progress
       });
     }
   }

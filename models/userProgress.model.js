@@ -54,33 +54,6 @@ const userProgressSchema = new mongoose.Schema({
 userProgressSchema.pre("save", function (next) {
   this.updatedAt = new Date();
 
-  // Progress validasyonu
-  if (this.progress.currentQuestion > this.progress.totalQuestions) {
-    this.progress.currentQuestion = this.progress.totalQuestions;
-  }
-
-  if (
-    this.progress.correctAnswers + this.progress.wrongAnswers >
-    this.progress.totalQuestions
-  ) {
-    this.progress.correctAnswers =
-      this.progress.totalQuestions - this.progress.wrongAnswers;
-  }
-
-  // Score hesaplama (100% olacak - tüm sorular doğru)
-  if (this.progress.totalQuestions > 0) {
-    if (this.progress.correctAnswers === this.progress.totalQuestions) {
-      this.score = 100;
-      this.completed = true;
-      if (!this.completedAt) {
-        this.completedAt = new Date();
-      }
-    } else {
-      this.score = null;
-      this.completed = false;
-    }
-  }
-
   next();
 });
 
