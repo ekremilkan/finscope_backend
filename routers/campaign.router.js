@@ -122,4 +122,10 @@ router.get(
   controller.campaignController.getUserSegmentEarningsAnalysis
 );
 
+router.get(
+  "/:id/reward-status",
+  middlewares.authMiddleware,
+  controller.campaignController.getRewardStatus
+);
+
 module.exports = { campaign: router };

@@ -683,3 +683,19 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
     }
   };
 };
+
+exports.getRewardStatus = async (req) => {
+  const { id: campaignId } = req.params;
+  const campaign = await Campaign.findById(campaignId, 'maxParticipants currentParticipants').lean();
+
+  if (!campaign) {
+    const err = new Error("Campaign not found.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
+  return {
+    rewardQuotas: campaign.maxParticipants,
+    currentWinners: campaign.currentParticipants
+  };
+};

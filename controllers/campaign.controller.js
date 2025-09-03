@@ -133,6 +133,7 @@ exports.updateProgress = async (req, res) => {
 // Quiz tamamla
 exports.completeQuiz = async (req, res) => {
   try {
+    console.log("Received request to complete quiz:", req);
     const data = await campaignService.completeQuiz(req);
     res.status(StatusCodes.OK).json({
       ...baseResponse,
@@ -308,6 +309,26 @@ exports.getUserSegmentEarningsAnalysis = async (req, res) => {
       ...baseResponse,
       data,
       message: "User segment earnings analysis retrieved successfully",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
+exports.getRewardStatus = async (req, res) => {
+  try {
+    const data = await campaignService.getRewardStatus(req);
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Reward status retrieved successfully",
       code: StatusCodes.OK,
     });
   } catch (error) {

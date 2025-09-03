@@ -303,30 +303,6 @@ const completeQuizSchema = Joi.object({
       'number.min': 'Toplam harcanan süre 0 veya daha büyük olmalıdır',
       'any.required': 'Toplam harcanan süre zorunludur'
     }),
-  score: Joi.number()
-    .valid(100)
-    .required()
-    .messages({
-      'number.base': 'Skor sayı olmalıdır',
-      'any.only': 'Quiz tamamlanması için skor 100 olmalıdır',
-      'any.required': 'Skor zorunludur'
-    }),
-  questionsAnswered: Joi.number()
-    .min(1)
-    .required()
-    .messages({
-      'number.base': 'Cevaplanan soru sayısı sayı olmalıdır',
-      'number.min': 'Cevaplanan soru sayısı en az 1 olmalıdır',
-      'any.required': 'Cevaplanan soru sayısı zorunludur'
-    }),
-  totalQuestions: Joi.number()
-    .min(1)
-    .required()
-    .messages({
-      'number.base': 'Toplam soru sayısı sayı olmalıdır',
-      'number.min': 'Toplam soru sayısı en az 1 olmalıdır',
-      'any.required': 'Toplam soru sayısı zorunludur'
-    })
 });
 
 // Middleware'ler
