@@ -2,6 +2,103 @@
 const { Telegraf, webhookCallback } = require("telegraf");
 const User = require("../models/user.model");
 const Wallet = require("../models/wallet.model");
+const { ChartJSNodeCanvas } = require("chartjs-node-canvas");
+const mongoose = require("mongoose");
+
+// Zaman dilimi: İstanbul
+const TZ = "Europe/Istanbul";
+
+// Son N günün (bugün dahil) etiketlerini üret
+function buildDateLabels(days) {
+  const labels = [];
+  const now = new Date();
+  // günleri geçmişten bugüne doğru sırala
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - i);
+    // YYYY-MM-DD
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    labels.push(`${y}-${m}-${day}`);
+  }
+  return labels;
+}
+
+// MongoDB'den gün bazlı kullanıcı sayıları (createdAt'e göre)
+async function getDailyUserCounts(days) {
+  const since = new Date();
+  since.setHours(0, 0, 0, 0);
+  since.setDate(since.getDate() - (days - 1)); // bugün dahil N gün
+
+  // Günlük grup: YYYY-MM-DD string (İstanbul TZ ile)
+  const results = await User.aggregate([
+    { $match: { createdAt: { $gte: since } } },
+    {
+      $group: {
+        _id: {
+          $dateToString: {
+            date: "$createdAt",
+            format: "%Y-%m-%d",
+            timezone: TZ,
+          },
+        },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
+  // Map'e çevir
+  const map = new Map(results.map((r) => [r._id, r.count]));
+  const labels = buildDateLabels(days);
+  const data = labels.map((lbl) => map.get(lbl) || 0);
+
+  return { labels, data };
+}
+
+// PNG grafik üret
+async function renderGrowthChart({ labels, data }) {
+  // Genişlik/yükseklik px
+  const width = 900;
+  const height = 450;
+  const chartJSNodeCanvas = new ChartJSNodeCanvas({
+    width,
+    height,
+    backgroundColour: "white",
+  });
+
+  const cfg = {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Günlük yeni kullanıcı",
+          data,
+          tension: 0.3,
+          borderWidth: 2,
+          pointRadius: 2,
+          // RENK BELİRTMİYORUZ: chartjs varsayılanlarını kullan (UI kurallarına uygunluk)
+        },
+      ],
+    },
+    options: {
+      plugins: {
+        title: { display: true, text: "Günlük Yeni Kullanıcılar" },
+        legend: { display: true },
+      },
+      scales: {
+        x: { ticks: { autoSkip: true, maxRotation: 0 } },
+        y: { beginAtZero: true, ticks: { precision: 0 } },
+      },
+    },
+  };
+
+  const buffer = await chartJSNodeCanvas.renderToBuffer(cfg, "image/png");
+  return buffer;
+}
 
 function csvEscape(value) {
   if (value === null || value === undefined) return "";
@@ -228,6 +325,78 @@ bot.command("exportusers", async (ctx) => {
   } catch (err) {
     console.error("exportusers error:", err);
     await ctx.reply("Üzgünüm, CSV oluşturulurken bir hata oluştu.");
+  }
+});
+
+// /usergrowth [gün] -> Son N günün günlük kayıt grafiğini PNG olarak yollar
+bot.command("usergrowth", async (ctx) => {
+  if (!isAllowedChat(ctx.chat?.id)) return;
+
+  try {
+    // Argüman çöz (örn: /usergrowth 14)
+    const parts = (ctx.message?.text || "").trim().split(/\s+/);
+    let days = Number(parts[1]) || 7; // varsayılan 7 gün
+    if (!Number.isFinite(days) || days < 1) days = 7;
+    if (days > 180) days = 180; // sınır (çok büyük istekleri frenle)
+
+    const { labels, data } = await getDailyUserCounts(days);
+    const png = await renderGrowthChart({ labels, data });
+
+    await ctx.replyWithPhoto(
+      { source: png, filename: `user_growth_${days}d.png` },
+      { caption: `📈 Son ${days} gün – Günlük yeni kullanıcılar` }
+    );
+  } catch (err) {
+    console.error("usergrowth error:", err);
+    await ctx.reply("Üzgünüm, büyüme grafiğini oluştururken hata oluştu.");
+  }
+});
+
+// /health -> DB bağlantısı, uptime, memory usage raporu
+bot.command("health", async (ctx) => {
+  if (!isAllowedChat(ctx.chat?.id)) return;
+
+  try {
+    // Mongoose bağlantı bilgileri
+    const st = (mongoose.connection && mongoose.connection.readyState) || 0;
+    // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+    const states = {
+      0: "disconnected",
+      1: "connected",
+      2: "connecting",
+      3: "disconnecting",
+    };
+    const dbState = states[st] || String(st);
+    const dbName = mongoose.connection?.name || "-";
+    const dbHost = mongoose.connection?.host || "-";
+
+    // Uptime
+    const up = process.uptime(); // saniye
+    const upH = Math.floor(up / 3600);
+    const upM = Math.floor((up % 3600) / 60);
+    const upS = Math.floor(up % 60);
+
+    // Bellek
+    const mem = process.memoryUsage(); // bytes
+    const fmt = (b) => `${(b / (1024 * 1024)).toFixed(1)} MB`;
+
+    const lines = [
+      "🩺 *Health Check*",
+      `• DB: *${dbState}* (${dbHost}/${dbName})`,
+      `• Uptime: *${upH}h ${upM}m ${upS}s*`,
+      `• RSS: *${fmt(mem.rss)}*`,
+      `• Heap Used: *${fmt(mem.heapUsed)}* / Heap Total: *${fmt(
+        mem.heapTotal
+      )}*`,
+      `• External: Node ${process.version} | Env: ${
+        process.env.NODE_ENV || "dev"
+      }`,
+    ];
+
+    await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
+  } catch (err) {
+    console.error("health error:", err);
+    await ctx.reply("Üzgünüm, health raporu alınamadı.");
   }
 });
 
