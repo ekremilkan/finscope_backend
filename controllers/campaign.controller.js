@@ -133,7 +133,6 @@ exports.updateProgress = async (req, res) => {
 // Quiz tamamla
 exports.completeQuiz = async (req, res) => {
   try {
-    console.log("Received request to complete quiz:", req);
     const data = await campaignService.completeQuiz(req);
     res.status(StatusCodes.OK).json({
       ...baseResponse,
