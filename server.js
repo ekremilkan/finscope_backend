@@ -8,12 +8,13 @@ const path = require("path");
 const config = require("./configs/index");
 const db = require("./db/index");
 const middlewares = require("./middlewares/index");
+const telegramService = require("./services/telegram.service");
 
 const router = require("./routers/index");
 const ROUTER_PREFIX = require("./consts/router.prefix.consts");
 
 const app = express();
-
+telegramService.TelegramService.initTelegram(app);
 // NODE_ENV kontrolü
 const isDevelopment = process.env.NODE_ENV === "development";
 console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
@@ -38,7 +39,7 @@ const corsOptions = {
   origin: "*",
   credentials: true,
   optionsSuccessStatus: 200,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS","PATCH"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
