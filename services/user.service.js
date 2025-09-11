@@ -1,12 +1,26 @@
 const User = require("../models/user.model");
-const CampaignParticipation = require("../models/campaignParticipation.model")
+const CampaignParticipation = require("../models/campaignParticipation.model");
 const utils = require("../utils/index");
 const bcrypt = require("bcryptjs");
 const { StatusCodes } = require("http-status-codes");
-
+const {
+  validateTelegramInitData,
+} = require("../utils/validateTelegramInitData");
 
 exports.register = async (req) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, telegramInitData } = req.body;
+
+  let telegram = null;
+  if (telegramInitData) {
+    const result = validateTelegramInitData(telegramInitData, 300); // 5 dk
+    if (result.ok) {
+      telegram = result.user; // { id, username, first_name, last_name, language_code, ... }
+    } else {
+      // Politika: istersen hataya düş, istersen yok say. Genelde yok saymak kullanıcıyı bloklamaz.
+      // const err = new Error(`Invalid Telegram initData: ${result.reason}`);
+      // err.statusCode = StatusCodes.UNAUTHORIZED; throw err;
+    }
+  }
 
   // E-posta kontrolü
   const existingUser = await User.findOne({ email });
@@ -16,8 +30,37 @@ exports.register = async (req) => {
     throw err;
   }
 
+  if (telegram?.id) {
+    const existingByTg = await User.findOne({ "telegram.id": telegram.id });
+    if (existingByTg) {
+      const err = new Error(
+        "This Telegram account is already linked to another user."
+      );
+      err.statusCode = StatusCodes.CONFLICT;
+      throw err;
+    }
+  }
+
   // Kullanıcı oluştur (role varsa kullan, yoksa default 'user')
-  const user = new User({ name, email, password, role: role || 'user' });
+  const user = new User({
+    name,
+    email,
+    password,
+    role: role || "user",
+    signupSource: telegram ? "telegram" : "web",
+    telegram: telegram
+      ? {
+          id: telegram.id,
+          username: telegram.username,
+          firstName: telegram.first_name,
+          lastName: telegram.last_name,
+          languageCode: telegram.language_code,
+          isPremium: telegram.is_premium,
+          photoUrl: telegram.photo_url,
+          linkedAt: new Date(),
+        }
+      : undefined,
+  });
   await user.save();
 
   // Token oluştur
@@ -60,11 +103,11 @@ exports.login = async (req) => {
   if (user.isVerified) {
     // Kullanıcı zaten doğrulanmış, direkt giriş yap
     await user.resetLoginAttempts();
-    
+
     // Token'ları oluştur
     const token = user.generateAccessToken();
     const refreshToken = utils.helper.createRefreshToken(user);
-    
+
     // Refresh token'ı kaydet
     user.refreshToken = refreshToken;
     user.tokenCreatedAt = new Date();
@@ -72,12 +115,12 @@ exports.login = async (req) => {
 
     const userResponse = user.toJSON();
 
-    return { 
-      user: userResponse, 
-      token, 
+    return {
+      user: userResponse,
+      token,
       refreshToken,
       isVerified: true,
-      message: "Login successful" 
+      message: "Login successful",
     };
   } else {
     // Kullanıcı henüz doğrulanmamış, verification code gönder
@@ -102,10 +145,10 @@ exports.login = async (req) => {
     }
 
     // Doğrulama gerektiğini belirten yanıt dön
-    return { 
+    return {
       message: "Verification code sent to your email address.",
       isVerified: false,
-      email: user.email
+      email: user.email,
     };
   }
 };
@@ -197,19 +240,19 @@ exports.verifyLogin = async (req) => {
 
   const userResponse = user.toJSON();
 
-  return { 
-    user: userResponse, 
-    token, 
+  return {
+    user: userResponse,
+    token,
     refreshToken,
     isVerified: true,
-    message: "Verification successful. Login completed." 
+    message: "Verification successful. Login completed.",
   };
 };
 
 exports.logout = async (req) => {
   const { userId } = req.params;
   const user = await User.findById(userId);
-  
+
   if (user) {
     // user.clearAccessToken();
     user.refreshToken = null;
@@ -246,7 +289,7 @@ exports.getUserByName = async (req) => {
 };
 
 exports.updateUserName = async (req) => {
-  console.log('GELEN İSTEĞİN BODY\'Sİ:', req.body);
+  console.log("GELEN İSTEĞİN BODY'Sİ:", req.body);
   const { userId } = req.params;
   const { newName } = req.body;
 
@@ -264,10 +307,9 @@ exports.updateUserName = async (req) => {
 
   return {
     user: user,
-    message: "Name updated successfully."
+    message: "Name updated successfully.",
   };
 };
-
 
 // ----------------------------
 // Şifre Sıfırlama Fonksiyonları
@@ -360,7 +402,7 @@ exports.refreshAccessToken = async (req) => {
   try {
     // Refresh token'ı doğrula
     const decodedToken = utils.helper.verifyRefreshToken(refreshToken);
-    
+
     // Kullanıcıyı database'den bul
     const user = await User.findById(decodedToken._id);
     if (!user) {
@@ -385,10 +427,10 @@ exports.refreshAccessToken = async (req) => {
 
     // Yeni access token oluştur
     const newAccessToken = user.generateAccessToken();
-    
+
     // Yeni refresh token oluştur (refresh token rotation için)
     const newRefreshToken = utils.helper.createRefreshToken(user);
-    
+
     // Yeni refresh token'ı database'e kaydet
     user.refreshToken = newRefreshToken;
     user.tokenCreatedAt = new Date();
@@ -396,13 +438,12 @@ exports.refreshAccessToken = async (req) => {
 
     const userResponse = user.toJSON();
 
-    return { 
-      user: userResponse, 
-      token: newAccessToken, 
+    return {
+      user: userResponse,
+      token: newAccessToken,
       refreshToken: newRefreshToken,
-      message: "Token refreshed successfully" 
+      message: "Token refreshed successfully",
     };
-
   } catch (error) {
     if (error.statusCode) {
       throw error;
@@ -425,7 +466,7 @@ exports.getUserJoinedCampaigns = async (req) => {
   // 'populate', bulduğu katılımlardaki 'campaignId'yi kullanarak Campaign koleksiyonundan
   // ilgili kampanyanın tüm detaylarını (başlık, ödül vb.) otomatik olarak çeker.
   const participations = await CampaignParticipation.find({ userId })
-    .populate('campaignId') // Campaign detaylarını getirmek için
+    .populate("campaignId") // Campaign detaylarını getirmek için
     .lean();
 
   // Eğer kullanıcı hiçbir kampanyaya katılmamışsa, boş dizi döndür.
@@ -434,16 +475,18 @@ exports.getUserJoinedCampaigns = async (req) => {
   }
 
   // 2. Frontend'in beklediği formata dönüştür.
-  const result = participations.map(p => {
-    // Silinmiş bir kampanyaya ait katılım kaydı kalmışsa, onu atla.
-    if (!p.campaignId) return null;
+  const result = participations
+    .map((p) => {
+      // Silinmiş bir kampanyaya ait katılım kaydı kalmışsa, onu atla.
+      if (!p.campaignId) return null;
 
-    return {
-      ...p.campaignId,        // Kampanyanın tüm alanlarını buraya kopyala (title, reward, vb.)
-      userStatus: p.status,   // Katılım durumunu 'userStatus' olarak ekle (completed, active, vb.)
-      completedAt: p.completedAt,
-    };
-  }).filter(Boolean); // Null olan kayıtları temizle.
+      return {
+        ...p.campaignId, // Kampanyanın tüm alanlarını buraya kopyala (title, reward, vb.)
+        userStatus: p.status, // Katılım durumunu 'userStatus' olarak ekle (completed, active, vb.)
+        completedAt: p.completedAt,
+      };
+    })
+    .filter(Boolean); // Null olan kayıtları temizle.
 
   return result;
 };

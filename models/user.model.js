@@ -2,6 +2,20 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+const TelegramSchema = new mongoose.Schema(
+  {
+    id: { type: Number, index: true }, // Telegram user id
+    username: String,
+    firstName: String,
+    lastName: String,
+    languageCode: String,
+    isPremium: Boolean,
+    photoUrl: String,
+    linkedAt: Date,
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -10,7 +24,7 @@ const userSchema = new mongoose.Schema(
       trim: true,
       minlength: 2,
       maxlength: 50,
-      match: /^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/,
+      match: /^[a-zA-ZğüşıöçĞÜŞİÖÇ0-9_\-\s]+$/,
     },
     email: {
       type: String,
@@ -26,8 +40,8 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['customer', 'user', 'admin'],
-      default: 'user',
+      enum: ["customer", "user", "admin"],
+      default: "user",
       required: true,
     },
     isVerified: {
@@ -70,6 +84,8 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false, // Bu alanı normal sorgularda getirme
     },
+    signupSource: { type: String, enum: ["web", "telegram"], default: "web" },
+    telegram: TelegramSchema,
   },
   {
     timestamps: true,
@@ -123,7 +139,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 
 // Rol kontrol metotları
 userSchema.methods.isAdmin = function () {
-  return this.role === 'admin';
+  return this.role === "admin";
 };
 
 // Sanal (Virtual) alan: Hesabın kilitli olup olmadığını anlık hesaplar
