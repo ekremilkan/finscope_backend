@@ -9,7 +9,8 @@ const {
 
 exports.register = async (req) => {
   const { name, email, password, role, telegramInitData } = req.body;
-
+  console.log("Register İsteği:", req.body);
+  
   let telegram = null;
   if (telegramInitData) {
     const result = validateTelegramInitData(telegramInitData, 300); // 5 dk

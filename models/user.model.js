@@ -86,6 +86,30 @@ const userSchema = new mongoose.Schema(
     },
     signupSource: { type: String, enum: ["web", "telegram"], default: "web" },
     telegram: TelegramSchema,
+    referralCode: {
+      type: String,
+      unique: true,
+      uppercase: true,
+      sparse: true,
+      minlength: 6,
+      maxlength: 12,
+      index: true,
+    },
+    invitedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    invitedAt: {
+      type: Date,
+      default: null,
+    },
+    invitees: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   {
     timestamps: true,
@@ -103,6 +127,16 @@ const userSchema = new mongoose.Schema(
     },
   }
 );
+
+//refferalCode için üretim (8 karakter uzunluğunda, userid'nin son 8 karakteri)
+userSchema.pre("save", function (next) {
+  if (this.isNew && !this.referralCode) {
+    const userIdStr = this._id.toString();
+    this.referralCode = userIdStr.slice(-8).toUpperCase();
+  }
+  next();
+});
+
 
 // Şifre her değiştiğinde hash'leyen ve tarihi güncelleyen middleware
 userSchema.pre("save", async function (next) {

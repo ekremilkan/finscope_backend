@@ -37,7 +37,11 @@ router.post("/logout/:userId", controller.userController.logout);
 router.get("/getUserById/:userId", controller.userController.getUserById);
 router.get("/getUserByName/:name", controller.userController.getUserByName);
 
-router.put("/updateUserName/:userId", controller.userController.updateUserName,validation.userValidation.validateUpdateUser);
+router.put(
+  "/updateUserName/:userId",
+  controller.userController.updateUserName,
+  validation.userValidation.validateUpdateUser
+);
 
 // Şifre sıfırlama
 router.post(
@@ -83,6 +87,12 @@ router.get(
   "/joined-campaigns",
   middlewares.authMiddleware,
   controller.userController.getUserJoinedCampaigns
+);
+
+router.post(
+  "/claim-referral",
+  middlewares.authMiddleware,
+  controller.referralController.claimReferral
 );
 
 module.exports = { user: router };

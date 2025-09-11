@@ -43,6 +43,7 @@ const registerSchema = Joi.object({
     .messages({
       "any.only": "Geçerli bir rol seçiniz (customer, user, admin)",
     }),
+  telegramInitData: Joi.string().optional().allow(null, ""),
 });
 
 // Kullanıcı giriş validation şeması

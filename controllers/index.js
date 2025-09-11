@@ -3,11 +3,13 @@ const walletController = require("./wallet.controller");
 const campaignController = require("./campaign.controller");
 const questionController = require("./questions.controller");
 const uploadController = require("./upload.controller");
+const referralController = require("./referral.controller");
 
-module.exports = { 
-  userController, 
-  walletController, 
-  campaignController, 
+module.exports = {
+  userController,
+  walletController,
+  campaignController,
   questionController,
-  uploadController
+  uploadController,
+  referralController,
 };
