@@ -95,4 +95,10 @@ router.post(
   controller.referralController.claimReferral
 );
 
+router.get(
+  "/referral-info",
+  middlewares.authMiddleware,
+  controller.referralController.getReferralInfo
+);
+
 module.exports = { user: router };

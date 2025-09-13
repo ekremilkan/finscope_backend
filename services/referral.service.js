@@ -15,7 +15,7 @@ const User = require("../models/user.model");
 exports.claimReferralCode = async (req) => {
   try {
     const meId =
-      req.user?._id || req.user?.id || req.userId || req.auth?.id || null;
+      req.user?._id || req.user?.id || req.user.userId || req.auth?.id || null;
     if (!meId) {
       const err = new Error("Kimlik doğrulaması yapılmamış.");
       err.statusCode = StatusCodes.UNAUTHORIZED;
@@ -48,7 +48,7 @@ exports.claimReferralCode = async (req) => {
     }
     // Kendini davet edemezsin
     if (inviter._id.toString() === String(meId)) {
-      throw httpError("You cannot refer yourself", StatusCodes.BAD_REQUEST);
+      throw new Error("You cannot refer yourself", StatusCodes.BAD_REQUEST);
     }
     // Zaten bağlanmış mı?
     const me = await User.findById(meId).select("_id invitedBy invitedAt");
@@ -93,4 +93,50 @@ exports.claimReferralCode = async (req) => {
   } catch (error) {
     throw new Error("Referral kodu işlenirken hata oluştu: " + error.message);
   }
+};
+
+/** Profilde referral bilgilerini getir */
+exports.getReferralInfo = async (req) => {
+
+  const meId = req.user.userId;
+
+  if (!meId)
+    throw new Error("Kimlik doğrulaması yapılmamış.", StatusCodes.UNAUTHORIZED);
+
+  const me = await User.findById(meId)
+    .select("name email referralCode invitedBy invitedAt")
+    .populate({ path: "invitedBy", select: "name referralCode _id" });
+
+  if (!me) throw new Error("Kullanıcı bulunamadı.", StatusCodes.NOT_FOUND);
+
+  const referralLink = `https://finscope.app/register?ref=${me.referralCode}`;
+
+  const invitees = await User.find({ invitedBy: me._id })
+    .select("name email referralCode createdAt")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return {
+    my: {
+      id: me._id,
+      name: me.name,
+      referralCode: me.referralCode,
+      referralLink, // ✅ paylaşılabilir link
+    },
+    invitedBy: me.invitedBy
+      ? {
+          id: me.invitedBy._id,
+          name: me.invitedBy.name,
+          referralCode: me.invitedBy.referralCode, // ✅ isteyen bilgi
+          invitedAt: me.invitedAt,
+        }
+      : null,
+    invitees: invitees.map((u) => ({
+      id: u._id,
+      name: u.name,
+      email: u.email,
+      referralCode: u.referralCode,
+      joinedAt: u.createdAt,
+    })),
+  };
 };

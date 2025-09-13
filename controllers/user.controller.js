@@ -5,7 +5,7 @@ const baseResponse = require("../dto/baseresponse.dto");
 exports.register = async (req, res) => {
   try {
     console.log("Register İsteği:", req.body);
-    
+
     const data = await userService.user.register(req);
     res.status(StatusCodes.CREATED).json({
       ...baseResponse,
@@ -27,12 +27,12 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const data = await userService.user.login(req);
-    
+
     // ✅ YENİ: isVerified durumuna göre mesaj ayarla
-    const message = data.isVerified 
-      ? "Login successful" 
+    const message = data.isVerified
+      ? "Login successful"
       : "Verification code sent to your email address";
-    
+
     res.status(StatusCodes.OK).json({
       ...baseResponse,
       data,
@@ -73,12 +73,12 @@ exports.resendVerificationCode = async (req, res) => {
 exports.verifyLogin = async (req, res) => {
   try {
     const data = await userService.user.verifyLogin(req);
-    
+
     // ✅ YENİ: isVerified durumuna göre mesaj ayarla
-    const message = data.isVerified 
-      ? "Verification successful. Login completed." 
+    const message = data.isVerified
+      ? "Verification successful. Login completed."
       : "Verification successful";
-    
+
     res.status(StatusCodes.OK).json({
       ...baseResponse,
       data,
@@ -228,7 +228,6 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
-
 exports.getUserById = async (req, res) => {
   try {
     const data = await userService.user.getUserById(req);
@@ -305,5 +304,45 @@ exports.getUserJoinedCampaigns = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+
+exports.claimReferralCode = async (req, res) => {
+  try {
+    const data = await userService.referral.claimReferralCode(req);
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Referral code claimed successfully.",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
+exports.getReferralInfo = async (req, res) => {
+  try {
+    const data = await userService.referral.getReferralInfo(req);
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Referral information retrieved successfully.",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
   }
 };
