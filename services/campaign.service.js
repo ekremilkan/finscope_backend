@@ -3,6 +3,7 @@ const UserProgress = require("../models/userProgress.model");
 const CampaignParticipation = require("../models/campaignParticipation.model");
 const UserSegment = require("../models/userSegment.model");
 const Wallet = require("../models/wallet.model");
+const User = require("../models/user.model");
 const { StatusCodes } = require("http-status-codes");
 
 // Kampanya soru sayısını güncelle
@@ -21,6 +22,7 @@ exports.completeQuiz = async (req) => {
   const userId = req.user.userId;
   const { totalTimeSpent } = req.body;
 
+  // 1) Katılım kontrolü
   const userProgress = await UserProgress.findOne({ userId, campaignId });
   if (!userProgress || !userProgress.joined) {
     const err = new Error("You have not joined this campaign.");
@@ -28,12 +30,14 @@ exports.completeQuiz = async (req) => {
     throw err;
   }
 
+  // 2) Çift tamamlama engeli
   if (userProgress.completed) {
     const err = new Error("This quiz has already been completed.");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
 
+  // 3) İlerleme & katılım güncelle
   const updatedUserProgress = await UserProgress.findByIdAndUpdate(
     userProgress._id,
     {
@@ -50,47 +54,54 @@ exports.completeQuiz = async (req) => {
       timeSpent: totalTimeSpent,
       status: "completed",
       completedAt: new Date(),
-    }
+    },
+    { upsert: true, new: true }
   );
 
-  //kampanyayı tamamlayan kullanıcının invitedBy'si varsa, o kullanıcıya ödül ver
-  // ödül miktarı bu kullanıcının kazandığı miktarın %3'ü olsun
-  //davet eden kullanıcının kampanya katılıp katılmadığı hiç önemli değil
-  //bu onlara bonus olarak verilecek
-  //bunun için modelde referralRewards alanı eklenecek
-  //kampanyayı tamamlayan kullanıcının kazandığı miktarın %3'ü referralRewards'a eklenecek
-  //bunu yaparken referralRewards alanı yoksa 0 kabul edilecek
-  //kampanyayı tamamlayan kullanıcının segmenti A ise %3'ü 3, B ise yine 3, C ise yine 3, D ise yine 3 olarak hesaplanacak
+  // 4) Referral bonus (ondalıklı) + referralHistory push
+  try {
+    const campaign = await Campaign.findById(campaignId).lean();
+    if (campaign) {
+      const user = await User.findById(userId, "invitedBy").lean();
+      const inviterId = user?.invitedBy;
 
-  //bu kodu test etmedim, dikkatli ol ayrıca import etmedim
-  //çünkü referralRewards alanı user modelinde yok
-  //bunu ekleyip test etmen lazım
-  //ayrıca segmenti userSegment modelinden alman lazım
-  //bunu da ekleyip test etmen lazım
-  //son olarak referralRewards alanını user modeline eklemen lazım
-  //bunu da ekleyip test etmen lazım
-  
-  /*const campaign = await Campaign.findById(campaignId);
-  if (campaign) {
-    const userSegment = await UserSegment.findOne({
-      userId,
-      chain: "ethereum",
-    }).sort({ asOf: -1 });
-    const segmentClass = userSegment?.class || "D"; //segment bilgisi yoksa D kabul et
+      if (inviterId) {
+        const userSegment = await UserSegment.findOne({
+          userId,
+          chain: "ethereum",
+        })
+          .sort({ asOf: -1 })
+          .lean();
 
-    const rewardAmount = campaign.rewards?.[segmentClass] || 0;
-    const referralBonus = Math.floor(rewardAmount * 0.03); // %3'ü
+        const segmentClass = userSegment?.class || "D";
+        let rewardAmount = Number(campaign?.rewards?.[segmentClass]);
+        if (!Number.isFinite(rewardAmount)) rewardAmount = 0;
 
-    if (referralBonus > 0) {
-      const user = await User.findById(userId);
-      if (user && user.invitedBy) {
-        await User.findByIdAndUpdate(user.invitedBy, {
-          $inc: { referralRewards: referralBonus },
-        });
+        // %3'ü hesapla, 2 ondalık sakla
+        const referralBonus = Number((rewardAmount * 0.03).toFixed(2));
+
+        if (referralBonus > 0) {
+          await User.findByIdAndUpdate(
+            inviterId,
+            {
+              $inc: { referralRewards: referralBonus },
+              $push: {
+                referralHistory: {
+                  inviteeId: userId,
+                  campaignId,
+                  bonus: referralBonus,
+                  at: new Date(),
+                },
+              },
+            },
+            { new: true }
+          );
+        }
       }
     }
+  } catch (referralErr) {
+    console.error("Referral reward error:", referralErr);
   }
-  */
 
   return {
     campaignId,
@@ -100,6 +111,11 @@ exports.completeQuiz = async (req) => {
     totalTimeSpent,
   };
 };
+
+
+
+
+
 
 // ✅ YENİ: Kullanıcının kampanya ilerlemesini getir
 exports.getUserProgress = async (req) => {

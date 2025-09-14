@@ -110,6 +110,22 @@ const userSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+
+    // toplam referral kazancı
+    referralRewards: {
+      type: Number,
+      default: 0,
+    },
+
+    // 🔥 eklendi: referral bonus geçmişi
+    referralHistory: [
+      {
+        inviteeId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+        campaignId: { type: mongoose.Schema.Types.ObjectId, ref: "Campaign", required: true },
+        bonus: { type: Number, required: true },
+        at: { type: Date, default: Date.now },
+      },
+    ],
   },
   {
     timestamps: true,
@@ -137,7 +153,6 @@ userSchema.pre("save", function (next) {
   next();
 });
 
-
 // Şifre her değiştiğinde hash'leyen ve tarihi güncelleyen middleware
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
@@ -158,7 +173,6 @@ userSchema.methods.generateAccessToken = function () {
   };
 
   // Not: Access token'lar kısa ömürlüdür ve veritabanına kaydedilmez.
-  // Her seferinde bu metotla oluşturulup istemciye gönderilir.
   const token = jwt.sign(payload, process.env.SECRETKEY, {
     expiresIn: process.env.EXPIRESIN,
   });
