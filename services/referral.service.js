@@ -109,7 +109,7 @@ exports.getReferralInfo = async (req) => {
 
   if (!me) throw new Error("Kullanıcı bulunamadı.", StatusCodes.NOT_FOUND);
 
-  const referralLink = `https://finscope.app/register?ref=${me.referralCode}`;
+  const referralLink = `https://beta0.finscope.app/register?ref=${me.referralCode}`;
 
   const invitees = await User.find({ invitedBy: me._id })
     .select("name email referralCode createdAt")
