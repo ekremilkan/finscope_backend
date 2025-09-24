@@ -70,11 +70,11 @@ exports.claimReferralCode = async (req) => {
       me.invitedAt = new Date();
       await me.save({ session });
 
-      inviter.invitees = inviter.invitees || [];
-      if (!inviter.invitees.includes(me._id)) {
-        inviter.invitees.push(me._id);
-        await inviter.save({ session });
-      }
+      await User.updateOne(
+        { _id: inviter._id },
+        { $addToSet: { invitees: me._id } },
+        { session }
+      );
 
       await session.commitTransaction();
       session.endSession();
