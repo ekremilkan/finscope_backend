@@ -414,6 +414,58 @@ bot.command("open", async (ctx) => {
   });
 });
 
+// /userWallet <email> -> email'e bağlı cüzdanları listeler
+bot.command("userwallet", async (ctx) => {
+  if (!isAllowedChat(ctx.chat?.id)) return;
+
+  try {
+    const parts = (ctx.message?.text || "").trim().split(/\s+/);
+    const email = (parts[1] || "").toLowerCase();
+    console.log("userwallet for email:", email);
+    if (!email || !/@/.test(email)) {
+      await ctx.reply(
+        "Lütfen geçerli bir email adresi gir. Örnek: /userWallet <email>"
+      );
+      return;
+    }
+
+    const user = await User.findOne({ email });
+    const wallets = Array.isArray(user?.wallets) ? user.wallets : [];
+    if (!user) {
+      await ctx.reply(`Bu email ile kayıtlı kullanıcı bulunamadı: ${email}`);
+      return;
+    }
+    if (wallets.length === 0) {
+      await ctx.reply(`Bu kullanıcının kayıtlı cüzdanı yok: ${email}`);
+      return;
+    }
+
+    const lines = [
+      `Kullanıcı: ${user.name || "-"} (${user.email})`,
+      `Kayıt tarihi: ${
+        user.createdAt ? new Date(user.createdAt).toLocaleString("tr-TR") : "-"
+      }`,
+      `Toplam cüzdan: ${wallets.length}`,
+      ``,
+      `Cüzdanlar:`,
+    ];
+    wallets.forEach((w, idx) => {
+      lines.push(
+        `${idx + 1}. [${w._id}] ${
+          w.address || w.addr || w.walletAddress || "-"
+        } (${w.type || "?"} - ${
+          w.createdAt ? new Date(w.createdAt).toLocaleDateString("tr-TR") : "-"
+        })`
+      );
+    });
+
+    await ctx.reply(lines.join("\n"));
+  } catch (err) {
+    console.error("userwallet error:", err);
+    await ctx.reply("Üzgünüm, cüzdan bilgileri alınamadı.");
+  }
+});
+
 /** Metin mesajı örneği (privacy off ise) */
 bot.on("text", async (ctx) => {
   if (!isAllowedChat(ctx.chat?.id)) return;
