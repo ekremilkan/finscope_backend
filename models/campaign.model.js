@@ -1,5 +1,111 @@
 const mongoose = require("mongoose");
 
+// Filter şeması (her segment için birden fazla filtre)
+const filterSchema = new mongoose.Schema({
+  field: {
+    type: String,
+    required: [true, 'Filtre alanı zorunludur'],
+    trim: true,
+    // Örnek: 'age', 'location', 'purchaseAmount', 'lastPurchaseDate'
+  },
+  chain: {
+    type: [String],
+    required: [true, 'Filtre zorunludur'],
+    enum: ['ETH', 'BNB', 'ARB','ETC'],
+    validate: {
+      validator: function(chainArray) {
+        return chainArray && chainArray.length > 0;
+      },
+      message: 'En az bir chain seçilmelidir'
+    }
+  },
+  tx_types: {
+      state: {
+        type: String,
+        enum: ['and','or'],
+        default: 'and'
+      },
+      // bridge, lending, swap, other
+      types: [{
+        name: {
+          type: String,
+        },
+        min_value:{
+          type: Number,
+          default: 0
+        },
+        min_count: {
+          type: Number,
+          default: 0
+        },
+      }],
+    },
+    token_types: {
+      state: {
+        type: String,
+        enum: ['and','or'],
+        default: 'and'
+      },
+      // meme,ai,stable
+      types: [{
+        name: {
+          type: String,
+        },
+        min_value:{
+          type: Number,
+          default: 0
+        },
+        min_count: {
+          type: Number,
+          default: 0
+        },
+      }],
+    }
+}, { _id: true });
+
+
+// Segment şeması
+const segmentSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, 'Segment adı zorunludur'],
+    trim: true,
+    uppercase: true,
+    // Örnek: 'A', 'B', 'C'
+  },
+  reward: {
+    type: Number,
+    required: [true, 'Ödül zorunludur'],
+    min: 0,
+  },
+  maxParticipants: {
+    type: Number,
+    required: [true, 'Maksimum katılımcı sayısı zorunludur'],
+    min: 0,
+  },
+  currentParticipants: {
+    type: Number,
+    required: [true, 'Mevcut katılımcı sayısı zorunludur'],
+    min: 0,
+  },
+  description: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Açıklama en fazla 500 karakter olabilir']
+  },
+  filters: {
+    type: [filterSchema],
+    validate: {
+      validator: function(filters) {
+        return filters && filters.length > 0;
+      },
+      message: 'Her segment en az bir filtre içermelidir'
+    }
+  },
+
+}, { _id: true, timestamps: true });
+
+
 const campaignSchema = new mongoose.Schema({
   title: { type: String, required: true, maxlength: 100 },
   description: { type: String, required: true, maxlength: 500 },
@@ -14,30 +120,15 @@ const campaignSchema = new mongoose.Schema({
     },
   ],
 
-  // Segment bazlı ödüller
-  rewards: {
-    A: { type: Number, required: true, min: 0 },
-    B: { type: Number, required: true, min: 0 },
-    C: { type: Number, required: true, min: 0 },
-    D: { type: Number, required: true, min: 0 },
+  segments: {
+    type: [segmentSchema],
+    validate: {
+      validator: function(segments) {
+        return segments && segments.length > 0;
+      },
+      message: 'Kampanya en az bir segment içermelidir'
+    }
   },
-
-  maxParticipants: {
-    A: { type: Number, default: 0, min: 0 },
-    B: { type: Number, default: 0, min: 0 },
-    C: { type: Number, default: 0, min: 0 },
-    D: { type: Number, default: 0, min: 0 },
-  },
-
-  currentParticipants: {
-    A: { type: Number, default: 0, min: 0 },
-    B: { type: Number, default: 0, min: 0 },
-    C: { type: Number, default: 0, min: 0 },
-    D: { type: Number, default: 0, min: 0 },
-  },
-
-  participants: { type: Number, default: 0, min: 0 },
-  maxTotalParticipants: { type: Number, default: 0, min: 0 },
 
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
@@ -86,157 +177,19 @@ const campaignSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 
-  segmentation: {
-    portfolioFilters: {
-      minTotalValueUsd: { type: Number },
-      minTokenCount: { type: Number },
-      minChainValues: [
-        {
-          chain: {
-            type: String,
-            enum: ["eth", "bsc", "polygon", "arbitrum", "optimism", "base"],
-          },
-          minValueUsd: Number,
-        },
-      ],
-      minTokenHoldings: [
-        {
-          symbol: {
-            type: String,
-            enum: ["ETH", "USDC", "UNI", "COMP", "FET", "MATIC", "BNB"],
-          },
-          minAmount: Number,
-        },
-      ],
-      diversification: {
-        maxHHI: Number,
-        maxTop5Concentration: Number,
-        riskScore: { type: String, enum: ["LOW", "MEDIUM", "HIGH"] },
-      },
-      minNativeBalances: [
-        {
-          chain: {
-            type: String,
-            enum: ["eth", "bsc", "polygon", "arbitrum", "optimism", "base"],
-          },
-          symbol: { type: String, enum: ["ETH", "BNB", "MATIC"] },
-          minAmount: Number,
-        },
-      ],
-    },
-
-    tokenCategoryPercentage: [
-      {
-        category: {
-          type: String,
-          enum: [
-            "dex",
-            "stablecoin",
-            "layer1",
-            "layer2",
-            "lending_protocol",
-            "ai",
-            "gamefi",
-            "liquid_staking",
-            "meme_token",
-            "oracle",
-            "restaking",
-            "bridge",
-            "yield_farming",
-            "infrastructure",
-            "alt",
-          ],
-        },
-        minPercent: Number,
-        maxPercent: Number,
-      },
-    ],
-
-    minDefiTvlUsd: { type: Number, default: 0 },
-    defiProtocols: [
-      {
-        protocol: {
-          type: String,
-          enum: ["compound", "aave", "lido", "uniswap_v3", "sushiswap"],
-        },
-        type: { type: String, enum: ["supplied", "borrowed", "liquidity", "staked"] },
-        minUsdValue: Number,
-      },
-    ],
-
-    minTrades: { type: Number, default: 0 },
-    minTradingVolumeUsd: { type: Number, default: 0 },
-    requiredDexes: [{ type: String, enum: ["uniswap_v3", "sushiswap", "pancakeswap", "1inch"] }],
-    pnlFilters: [
-      {
-        chain: { type: String, enum: ["eth", "bsc", "polygon", "arbitrum", "optimism", "base"] },
-        period: { type: String, enum: ["7d", "30d", "90d"] },
-        minRoiPercent: Number,
-      },
-    ],
-
-    requiredNftCollections: [{ type: String }],
-    minBlueChipNfts: { type: Number, default: 0 },
-
-    riskTolerance: { type: String, enum: ["LOW", "MEDIUM", "HIGH"] },
-    handsClassification: { type: String, enum: ["PAPER_HANDS", "DIAMOND_HANDS"] },
-    behavioralScores: {
-      minHodlScore: Number,
-      minTraderScore: Number,
-      minSophisticationScore: Number,
-      minDiamondHandsScore: Number,
-    },
-
-    security: { maxUnlimitedApprovals: Number, maxHighRiskApprovals: Number },
-
-    walletClassifications: [
-      {
-        type: String,
-        enum: [
-          "Plankton (<0.01 BTC)",
-          "Shrimp (<1 BTC)",
-          "Crab (1–10 BTC)",
-          "Octopus (10–50 BTC)",
-          "Fish (50–100 BTC)",
-          "Dolphin (100–500 BTC)",
-          "Shark (500–1,000 BTC)",
-          "Whale (1,000–5,000 BTC)",
-          "Humpback (>5,000 BTC)",
-          "Early Retail (<$10k, pre-2020)",
-          "Early Professional ($10k–$10M, pre-2020)",
-          "Early Institutional (>$10M, pre-2020)",
-          "Late Retail (<$10k, post-2020)",
-          "Late Professional ($10k–$10M, post-2020)",
-          "Late Institutional (>$10M, post-2020)",
-          "Custom",
-        ],
-      },
-    ],
-  },
 },
-{
-  // 🔥 virtual alanlar JSON çıktısına dahil olsun
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true },
-}
 );
 
-// --- Virtual: min/max reward (kartlarda “Up to $X” göstermek için)
-campaignSchema.virtual("minReward").get(function () {
-  const r = this.rewards || {};
-  const vals = Object.values(r).filter((x) => Number.isFinite(x));
-  if (!vals.length) return 0;
-  return Math.min(...vals);
-});
-campaignSchema.virtual("maxReward").get(function () {
-  const r = this.rewards || {};
-  const vals = Object.values(r).filter((x) => Number.isFinite(x));
-  if (!vals.length) return 0;
-  return Math.max(...vals);
-});
+
 
 // Bitiş tarihi kontrolü ve status güncelleme
 campaignSchema.pre("save", function (next) {
+  // Segment isimlerinin benzersiz olduğundan emin ol
+  const segmentNames = this.segments.map(s => s.name);
+  const uniqueNames = new Set(segmentNames);
+  if (segmentNames.length !== uniqueNames.size) {
+    next(new Error('Segment isimleri benzersiz olmalıdır'));
+  }
   const now = new Date();
   this.updatedAt = now;
 
@@ -247,13 +200,6 @@ campaignSchema.pre("save", function (next) {
     this.status = "upcoming";
   } else {
     this.status = "active";
-  }
-
-  if (!this.maxTotalParticipants || this.maxTotalParticipants === 0) {
-    this.maxTotalParticipants = Object.values(this.maxParticipants || {}).reduce((s, c) => s + c, 0);
-  }
-  if (!this.participants || this.participants === 0) {
-    this.participants = Object.values(this.currentParticipants || {}).reduce((s, c) => s + c, 0);
   }
   next();
 });
@@ -266,5 +212,55 @@ campaignSchema.pre("validate", function (next) {
   }
   next();
 });
+
+campaignSchema.methods.addSegment = function(segmentData) {
+  this.segments.push(segmentData);
+  return this.save();
+};
+// Instance metodları
+campaignSchema.methods.activate = function() {
+  this.status = 'active';
+  return this.save();
+};
+
+campaignSchema.methods.inactive = function() {
+  this.status = 'inactive';
+  return this.save();
+};
+
+campaignSchema.methods.expired = function() {
+  this.status = 'expired';
+  return this.save();
+};
+
+campaignSchema.methods.upcoming = function() {
+  this.status = 'upcoming';
+  return this.save();
+};
+
+// ========================================
+// ✅ YENİ: Database Indexes (Performance Optimization)
+// ========================================
+
+// 1. Kampanya listeleme ve filtreleme için compound index
+campaignSchema.index({ status: 1, isActive: 1, isAdminAccept: 1, startDate: -1 });
+
+// 2. User bazlı kampanya sorgular için
+campaignSchema.index({ createdUserId: 1, status: 1 });
+
+// 3. Tarih bazlı sorgular için
+campaignSchema.index({ endDate: 1, status: 1 });
+campaignSchema.index({ startDate: 1, endDate: 1 });
+
+// 4. Segment bazlı sorgular için (segments array içinde)
+campaignSchema.index({ 'segments.name': 1 });
+campaignSchema.index({ 'segments.currentParticipants': 1, 'segments.maxParticipants': 1 });
+
+// 5. Tag bazlı arama için
+campaignSchema.index({ tags: 1 });
+
+// 6. Full-text search için (title ve description)
+campaignSchema.index({ title: 'text', description: 'text' });
+
 
 module.exports = mongoose.model("Campaign", campaignSchema);

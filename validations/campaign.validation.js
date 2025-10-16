@@ -1,6 +1,140 @@
 const Joi = require('joi');
 
-// Kampanya oluşturma validation şeması
+// ========================================
+// YENİ: Filter Schema (Segment Filtreleri)
+// ========================================
+const filterSchema = Joi.object({
+  field: Joi.string()
+    .required()
+    .trim()
+    .messages({
+      'string.empty': 'Filtre alanı boş olamaz',
+      'any.required': 'Filtre alanı zorunludur'
+    }),
+  
+  chain: Joi.array()
+    .items(Joi.string().valid('ETH', 'BNB', 'ARB', 'ETC'))
+    .min(1)
+    .required()
+    .messages({
+      'array.min': 'En az bir chain seçilmelidir',
+      'any.only': 'Chain ETH, BNB, ARB veya ETC olmalıdır',
+      'any.required': 'Chain alanı zorunludur'
+    }),
+  
+  tx_types: Joi.object({
+    state: Joi.string()
+      .valid('and', 'or')
+      .default('and')
+      .messages({
+        'any.only': 'State and veya or olmalıdır'
+      }),
+    types: Joi.array().items(
+      Joi.object({
+        name: Joi.string()
+          .valid('bridge', 'lending', 'swap', 'other')
+          .messages({
+            'any.only': 'Transaction type bridge, lending, swap veya other olmalıdır'
+          }),
+        min_value: Joi.number()
+          .min(0)
+          .default(0)
+          .messages({
+            'number.min': 'Min value 0 veya daha büyük olmalıdır'
+          }),
+        min_count: Joi.number()
+          .min(0)
+          .default(0)
+          .messages({
+            'number.min': 'Min count 0 veya daha büyük olmalıdır'
+          })
+      })
+    ).default([])
+  }).optional(),
+  
+  token_types: Joi.object({
+    state: Joi.string()
+      .valid('and', 'or')
+      .default('and')
+      .messages({
+        'any.only': 'State and veya or olmalıdır'
+      }),
+    types: Joi.array().items(
+      Joi.object({
+        name: Joi.string()
+          .valid('meme', 'ai', 'stable', 'defi', 'nft')
+          .messages({
+            'any.only': 'Token type meme, ai, stable, defi veya nft olmalıdır'
+          }),
+        min_value: Joi.number()
+          .min(0)
+          .default(0),
+        min_count: Joi.number()
+          .min(0)
+          .default(0)
+      })
+    ).default([])
+  }).optional()
+});
+
+// ========================================
+// YENİ: Segment Schema
+// ========================================
+const segmentSchema = Joi.object({
+  name: Joi.string()
+    .uppercase()
+    .required()
+    .trim()
+    .messages({
+      'string.empty': 'Segment adı boş olamaz',
+      'any.required': 'Segment adı zorunludur'
+    }),
+  
+  reward: Joi.number()
+    .min(0)
+    .required()
+    .messages({
+      'number.base': 'Ödül sayı olmalıdır',
+      'number.min': 'Ödül 0 veya daha büyük olmalıdır',
+      'any.required': 'Ödül zorunludur'
+    }),
+  
+  maxParticipants: Joi.number()
+    .min(0)
+    .required()
+    .messages({
+      'number.base': 'Maksimum katılımcı sayı olmalıdır',
+      'number.min': 'Maksimum katılımcı 0 veya daha büyük olmalıdır',
+      'any.required': 'Maksimum katılımcı zorunludur'
+    }),
+  
+  currentParticipants: Joi.number()
+    .min(0)
+    .default(0)
+    .messages({
+      'number.min': 'Mevcut katılımcı 0 veya daha büyük olmalıdır'
+    }),
+  
+  description: Joi.string()
+    .max(500)
+    .allow('', null)
+    .messages({
+      'string.max': 'Açıklama en fazla 500 karakter olabilir'
+    }),
+  
+  filters: Joi.array()
+    .items(filterSchema)
+    .min(1)
+    .required()
+    .messages({
+      'array.min': 'Her segment en az bir filtre içermelidir',
+      'any.required': 'Filtreler zorunludur'
+    })
+});
+
+// ========================================
+// Kampanya Oluşturma Validation Şeması
+// ========================================
 const createCampaignSchema = Joi.object({
   title: Joi.string()
     .max(100)
@@ -10,6 +144,7 @@ const createCampaignSchema = Joi.object({
       'string.max': 'Kampanya başlığı en fazla 100 karakter olmalıdır',
       'any.required': 'Kampanya başlığı zorunludur'
     }),
+  
   description: Joi.string()
     .max(500)
     .required()
@@ -18,6 +153,7 @@ const createCampaignSchema = Joi.object({
       'string.max': 'Kampanya açıklaması en fazla 500 karakter olmalıdır',
       'any.required': 'Kampanya açıklaması zorunludur'
     }),
+  
   content: Joi.array().items(
     Joi.object({
       itemImage: Joi.string().uri().allow('', null).messages({
@@ -35,64 +171,43 @@ const createCampaignSchema = Joi.object({
       itemIndex: Joi.number().min(0).default(0)
     })
   ).default([]),
-  // ✅ GÜNCELLENDİ: Her segment için farklı ödül değerleri
-  rewards: Joi.object({
-    A: Joi.number()
-      .min(0)
-      .required()
-      .messages({
-        'number.base': 'A segmenti ödül miktarı sayı olmalıdır',
-        'number.min': 'A segmenti ödül miktarı 0 veya daha büyük olmalıdır',
-        'any.required': 'A segmenti ödül miktarı zorunludur'
-      }),
-    B: Joi.number()
-      .min(0)
-      .required()
-      .messages({
-        'number.base': 'B segmenti ödül miktarı sayı olmalıdır',
-        'number.min': 'B segmenti ödül miktarı 0 veya daha büyük olmalıdır',
-        'any.required': 'B segmenti ödül miktarı zorunludur'
-      }),
-    C: Joi.number()
-      .min(0)
-      .required()
-      .messages({
-        'number.base': 'C segmenti ödül miktarı sayı olmalıdır',
-        'number.min': 'C segmenti ödül miktarı 0 veya daha büyük olmalıdır',
-        'any.required': 'C segmenti ödül miktarı zorunludur'
-      }),
-    D: Joi.number()
-      .min(0)
-      .required()
-      .messages({
-        'number.base': 'D segmenti ödül miktarı sayı olmalıdır',
-        'number.min': 'D segmenti ödül miktarı 0 veya daha büyük olmalıdır',
-        'any.required': 'D segmenti ödül miktarı zorunludur'
-      })
-  }).required().messages({
-    'any.required': 'Segment ödülleri zorunludur'
-  }),
-  maxParticipants: Joi.object({
-    A: Joi.number().min(0).default(0),
-    B: Joi.number().min(0).default(0),
-    C: Joi.number().min(0).default(0),
-    D: Joi.number().min(0).default(0)
-  }).default({ A:0,B:0,C:0,D:0 }),
-  // ✅ YENİ: Toplam maksimum katılımcı sayısı
-  maxTotalParticipants: Joi.number().min(0).default(0).allow(null),
-  // currentParticipants uygulama tarafından yönetilir; istemciden gelirse yok sayılacaktır
-  currentParticipants: Joi.object({
-    A: Joi.number().min(0).default(0),
-    B: Joi.number().min(0).default(0),
-    C: Joi.number().min(0).default(0),
-    D: Joi.number().min(0).default(0)
-  }).default({ A:0,B:0,C:0,D:0 }),
+  
+  // ========================================
+  // YENİ: Segments Array (ESKİ rewards, maxParticipants YERİNE)
+  // ========================================
+  segments: Joi.array()
+    .items(segmentSchema)
+    .min(1)
+    .required()
+    .custom((segments, helpers) => {
+      // Segment isimlerinin benzersiz olduğunu kontrol et
+      const names = segments.map(s => s.name);
+      const uniqueNames = new Set(names);
+      if (names.length !== uniqueNames.size) {
+        return helpers.error('any.custom', { 
+          message: 'Segment isimleri benzersiz olmalıdır' 
+        });
+      }
+      return segments;
+    })
+    .messages({
+      'array.min': 'Kampanya en az bir segment içermelidir',
+      'any.required': 'Segments zorunludur'
+    }),
+  
+  // ❌ ESKİ ALANLAR KALDIRILDI:
+  // - rewards
+  // - maxParticipants
+  // - maxTotalParticipants
+  // - currentParticipants
+  
   startDate: Joi.date()
     .required()
     .messages({
       'date.base': 'Geçerli bir başlangıç tarihi giriniz',
       'any.required': 'Başlangıç tarihi zorunludur'
     }),
+  
   endDate: Joi.date()
     .required()
     .greater(Joi.ref('startDate'))
@@ -101,6 +216,7 @@ const createCampaignSchema = Joi.object({
       'any.required': 'Bitiş tarihi zorunludur',
       'date.greater': 'Bitiş tarihi başlangıç tarihinden sonra olmalıdır'
     }),
+  
   questions: Joi.number()
     .min(1)
     .default(5)
@@ -108,11 +224,13 @@ const createCampaignSchema = Joi.object({
       'number.base': 'Soru sayısı sayı olmalıdır',
       'number.min': 'Soru sayısı en az 1 olmalıdır'
     }),
+  
   questionIds: Joi.array()
     .items(Joi.string().regex(/^[0-9a-fA-F]{24}$/))
     .default([]),
+  
   tags: Joi.array().items(Joi.string()).default([]),
-  // ✅ YENİ: Şirket logosu (zorunlu)
+  
   company_logo: Joi.string()
     .required()
     .messages({
@@ -126,7 +244,7 @@ const createCampaignSchema = Joi.object({
       }
       return value;
     }, 'Geçerli bir resim URL\'si veya base64 string giriniz'),
-  // ✅ YENİ: Twitter URL (zorunlu)
+  
   twitter_url: Joi.string()
     .required()
     .messages({
@@ -140,117 +258,20 @@ const createCampaignSchema = Joi.object({
       }
       return value;
     }, 'Geçerli bir Twitter URL\'si giriniz (twitter.com veya x.com)'),
-  status: Joi.string().valid('active','inactive','expired','upcoming').default('upcoming'),
+  
+  status: Joi.string()
+    .valid('active','inactive','expired','upcoming')
+    .default('upcoming'),
+  
   isActive: Joi.boolean().default(true),
+  
   isAdminAccept: Joi.forbidden().messages({
     'any.unknown': 'Sadece admin bu alanı değiştirebilir.'
   }),
-  // createdUserId uygulama tarafından auth üzerinden set edilir; istemci gönderemez
+  
   createdUserId: Joi.forbidden().messages({
     'any.unknown': 'createdUserId istemci tarafından gönderilemez'
-  }),
-  // ✅ YENİ: Segmentasyon kriterleri - opsiyonel alanlar
-  segmentation: Joi.object({
-    // Genel Portföy
-    portfolioFilters: Joi.object({
-      minTotalValueUsd: Joi.number().min(0).allow(null),
-      minTokenCount: Joi.number().min(0).allow(null),
-      minChainValues: Joi.array().items(
-        Joi.object({
-          chain: Joi.string().valid("eth", "bsc", "polygon", "arbitrum", "optimism", "base").allow(null),
-          minValueUsd: Joi.number().min(0).allow(null)
-        })
-      ).allow(null),
-      minTokenHoldings: Joi.array().items(
-        Joi.object({
-          symbol: Joi.string().valid("ETH", "USDC", "UNI", "COMP", "FET", "MATIC", "BNB").allow(null),
-          minAmount: Joi.number().min(0).allow(null)
-        })
-      ).allow(null),
-      diversification: Joi.object({
-        maxHHI: Joi.number().min(0).allow(null),
-        maxTop5Concentration: Joi.number().min(0).max(100).allow(null),
-        riskScore: Joi.string().valid("LOW", "MEDIUM", "HIGH").allow(null)
-      }).allow(null),
-      minNativeBalances: Joi.array().items(
-        Joi.object({
-          chain: Joi.string().valid("eth", "bsc", "polygon", "arbitrum", "optimism", "base").allow(null),
-          symbol: Joi.string().valid("ETH", "BNB", "MATIC").allow(null),
-          minAmount: Joi.number().min(0).allow(null)
-        })
-      ).allow(null)
-    }).allow(null),
-
-    // Token Dağılımı
-    tokenCategoryPercentage: Joi.array().items(
-      Joi.object({
-        category: Joi.string().valid(
-          "dex", "stablecoin", "layer1", "layer2", "lending_protocol", "ai", 
-          "gamefi", "liquid_staking", "meme_token", "oracle", "restaking", 
-          "bridge", "yield_farming", "infrastructure", "alt"
-        ).allow(null),
-        minPercent: Joi.number().min(0).max(100).allow(null),
-        maxPercent: Joi.number().min(0).max(100).allow(null)
-      })
-    ).allow(null),
-
-    // DeFi Aktivitesi
-    minDefiTvlUsd: Joi.number().min(0).default(0).allow(null),
-    defiProtocols: Joi.array().items(
-      Joi.object({
-        protocol: Joi.string().valid("compound", "aave", "lido", "uniswap_v3", "sushiswap").allow(null),
-        type: Joi.string().valid("supplied", "borrowed", "liquidity", "staked").allow(null),
-        minUsdValue: Joi.number().min(0).allow(null)
-      })
-    ).allow(null),
-
-    // Trading Aktivitesi
-    minTrades: Joi.number().min(0).default(0).allow(null),
-    minTradingVolumeUsd: Joi.number().min(0).default(0).allow(null),
-    requiredDexes: Joi.array().items(
-      Joi.string().valid("uniswap_v3", "sushiswap", "pancakeswap", "1inch")
-    ).allow(null),
-    pnlFilters: Joi.array().items(
-      Joi.object({
-        chain: Joi.string().valid("eth", "bsc", "polygon", "arbitrum", "optimism", "base").allow(null),
-        period: Joi.string().valid("7d", "30d", "90d").allow(null),
-        minRoiPercent: Joi.number().allow(null)
-      })
-    ).allow(null),
-
-    // NFT Portföyü
-    requiredNftCollections: Joi.array().items(Joi.string()).allow(null),
-    minBlueChipNfts: Joi.number().min(0).default(0).allow(null),
-
-    // Davranışsal Skorlar
-    riskTolerance: Joi.string().valid("LOW", "MEDIUM", "HIGH").allow(null),
-    handsClassification: Joi.string().valid("PAPER_HANDS", "DIAMOND_HANDS").allow(null),
-    behavioralScores: Joi.object({
-      minHodlScore: Joi.number().min(0).max(100).allow(null),
-      minTraderScore: Joi.number().min(0).max(100).allow(null),
-      minSophisticationScore: Joi.number().min(0).max(100).allow(null),
-      minDiamondHandsScore: Joi.number().min(0).max(100).allow(null)
-    }).allow(null),
-
-    // Güvenlik
-    security: Joi.object({
-      maxUnlimitedApprovals: Joi.number().min(0).allow(null),
-      maxHighRiskApprovals: Joi.number().min(0).allow(null)
-    }).allow(null),
-
-    // Wallet Classifications
-    walletClassifications: Joi.array().items(
-      Joi.string().valid(
-        "Plankton (<0.01 BTC)", "Shrimp (<1 BTC)", "Crab (1–10 BTC)", 
-        "Octopus (10–50 BTC)", "Fish (50–100 BTC)", "Dolphin (100–500 BTC)", 
-        "Shark (500–1,000 BTC)", "Whale (1,000–5,000 BTC)", "Humpback (>5,000 BTC)", 
-        "Early Retail (<$10k, pre-2020)", "Early Professional ($10k–$10M, pre-2020)", 
-        "Early Institutional (>$10M, pre-2020)", "Late Retail (<$10k, post-2020)", 
-        "Late Professional ($10k–$10M, post-2020)", "Late Institutional (>$10M, post-2020)", 
-        "Custom"
-      )
-    ).allow(null)
-  }).allow(null)
+  })
 });
 
 // Kampanya güncelleme validation şeması
@@ -259,7 +280,7 @@ const updateCampaignSchema = createCampaignSchema.fork(
   schema => schema.optional()
 );
 
-// Progress update ve quiz completion validation senkron
+// Progress update validation
 const updateProgressSchema = Joi.object({
   questionId: Joi.string()
     .required()
@@ -294,6 +315,7 @@ const updateProgressSchema = Joi.object({
   completed: Joi.boolean().default(false)
 });
 
+// Quiz completion validation
 const completeQuizSchema = Joi.object({
   totalTimeSpent: Joi.number()
     .min(0)
@@ -305,12 +327,20 @@ const completeQuizSchema = Joi.object({
     }),
 });
 
-// Middleware'ler
+// ========================================
+// Middleware Functions
+// ========================================
 const validateCreateCampaign = (req, res, next) => {
   const { error } = createCampaignSchema.validate(req.body, { abortEarly: false });
   if (error) {
     const errors = error.details.map(d => d.message);
-    return res.status(400).json({ success: false, error: true, message: 'Validation hatası', errors, code: 400 });
+    return res.status(400).json({ 
+      success: false, 
+      error: true, 
+      message: 'Validation hatası', 
+      errors, 
+      code: 400 
+    });
   }
   next();
 };
@@ -319,7 +349,13 @@ const validateUpdateCampaign = (req, res, next) => {
   const { error } = updateCampaignSchema.validate(req.body, { abortEarly: false });
   if (error) {
     const errors = error.details.map(d => d.message);
-    return res.status(400).json({ success: false, error: true, message: 'Validation hatası', errors, code: 400 });
+    return res.status(400).json({ 
+      success: false, 
+      error: true, 
+      message: 'Validation hatası', 
+      errors, 
+      code: 400 
+    });
   }
   next();
 };
@@ -328,7 +364,13 @@ const validateUpdateProgress = (req, res, next) => {
   const { error } = updateProgressSchema.validate(req.body, { abortEarly: false });
   if (error) {
     const errors = error.details.map(d => d.message);
-    return res.status(400).json({ success: false, error: true, message: 'Validation hatası', errors, code: 400 });
+    return res.status(400).json({ 
+      success: false, 
+      error: true, 
+      message: 'Validation hatası', 
+      errors, 
+      code: 400 
+    });
   }
   next();
 };
@@ -337,12 +379,17 @@ const validateCompleteQuiz = (req, res, next) => {
   const { error } = completeQuizSchema.validate(req.body, { abortEarly: false });
   if (error) {
     const errors = error.details.map(d => d.message);
-    return res.status(400).json({ success: false, error: true, message: 'Validation hatası', errors, code: 400 });
+    return res.status(400).json({ 
+      success: false, 
+      error: true, 
+      message: 'Validation hatası', 
+      errors, 
+      code: 400 
+    });
   }
   next();
 };
 
-// ✅ YENİ: Ödeme durumu güncelleme validation
 const validateUpdatePurchase = (req, res, next) => {
   const bodySchema = Joi.object({
     isPurchase: Joi.boolean().required().messages({
@@ -354,27 +401,47 @@ const validateUpdatePurchase = (req, res, next) => {
   // Body kontrolü
   const { error } = bodySchema.validate(req.body);
   if (error) {
-    return res.status(400).json({ success: false, error: true, message: error.details[0].message, code: 400 });
+    return res.status(400).json({ 
+      success: false, 
+      error: true, 
+      message: error.details[0].message, 
+      code: 400 
+    });
   }
 
   // Param kontrolü (ObjectId deseni)
   const objectIdRegex = /^[0-9a-fA-F]{24}$/;
   const { userId, campaignId } = req.params || {};
   if (!objectIdRegex.test(userId || '')) {
-    return res.status(400).json({ success: false, error: true, message: 'Geçersiz userId', code: 400 });
+    return res.status(400).json({ 
+      success: false, 
+      error: true, 
+      message: 'Geçersiz userId', 
+      code: 400 
+    });
   }
   if (!objectIdRegex.test(campaignId || '')) {
-    return res.status(400).json({ success: false, error: true, message: 'Geçersiz campaignId', code: 400 });
+    return res.status(400).json({ 
+      success: false, 
+      error: true, 
+      message: 'Geçersiz campaignId', 
+      code: 400 
+    });
   }
 
   next();
 };
 
 module.exports = {
+  // Schemas
+  filterSchema,
+  segmentSchema,
   createCampaignSchema,
   updateCampaignSchema,
   updateProgressSchema,
   completeQuizSchema,
+  
+  // Validators
   validateCreateCampaign,
   validateUpdateCampaign,
   validateUpdateProgress,
