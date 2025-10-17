@@ -166,6 +166,30 @@ const campaignSchema = new mongoose.Schema({
     },
   },
 
+  telegram_url: {
+    type: String,
+    required: false,
+    validate: {
+      validator: (v) => {
+        if (!v) return true; // Opsiyonel alan
+        return /^https?:\/\/(www\.)?(t\.me|telegram\.me)\/.+/.test(v);
+      },
+      message: "Geçerli bir Telegram URL'si giriniz (t.me veya telegram.me)",
+    },
+  },
+
+  website_url: {
+    type: String,
+    required: false,
+    validate: {
+      validator: (v) => {
+        if (!v) return true; // Opsiyonel alan
+        return /^https?:\/\/.+/.test(v);
+      },
+      message: "Geçerli bir website URL'si giriniz",
+    },
+  },
+
   status: {
     type: String,
     enum: ["active", "inactive", "expired", "upcoming"],

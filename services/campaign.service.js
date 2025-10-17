@@ -300,6 +300,8 @@ exports.create = async (req) => {
     tags,
     company_logo,
     twitter_url,
+    telegram_url,
+    website_url,
   } = req.body;
 
   const createdUserId = req.user.userId;
@@ -329,8 +331,11 @@ exports.create = async (req) => {
     tags,
     company_logo,
     twitter_url,
+    telegram_url,
+    website_url,
     createdUserId,
     isAdminAccept: role === "admin" ? true : false,
+    isActive: false,  // ✅ Admin kampanyaları inaktif olarak kaydedilir
   });
 
   await campaign.save();
