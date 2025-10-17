@@ -74,11 +74,11 @@ exports.completeQuiz = async (req) => {
           .lean();
 
         const segmentClass = userSegment?.class || "D";
-        
+
         // ✅ YENİ: Kampanyanın ilgili segment'inden reward'ı al
-        const segment = campaign.segments?.find(s => s.name === segmentClass);
+        const segment = campaign.segments?.find((s) => s.name === segmentClass);
         let rewardAmount = Number(segment?.reward || 0);
-        
+
         if (!Number.isFinite(rewardAmount)) rewardAmount = 0;
 
         // %3'ü hesapla, 2 ondalık sakla
@@ -101,7 +101,6 @@ exports.completeQuiz = async (req) => {
             },
             { new: true }
           );
-          
         }
       }
     }
@@ -117,11 +116,6 @@ exports.completeQuiz = async (req) => {
     totalTimeSpent,
   };
 };
-
-
-
-
-
 
 // ✅ YENİ: Kullanıcının kampanya ilerlemesini getir
 exports.getUserProgress = async (req) => {
@@ -147,8 +141,12 @@ exports.getUserProgress = async (req) => {
 
 // ✅ GÜNCELLENDİ: Kampanyaya katıl (Segment-based)
 exports.joinCampaign = async (req) => {
-  const { id: campaignId } = req.params;
+  const { id: campaignId, segment: segmentParam } = req.params;
   const { userId, role } = req.user;
+
+  const VALID_SEGMENTS = new Set(["A", "B", "C", "D"]);
+  const fromParam = (segmentParam || "").toString().trim().toUpperCase();
+  const requestedSegment = VALID_SEGMENTS.has(fromParam) ? fromParam : null;
 
   // 1. Kampanyayı getir
   const campaign = await Campaign.findById(campaignId);
@@ -178,28 +176,29 @@ exports.joinCampaign = async (req) => {
   }
 
   // 3. Kullanıcının segment'ini belirle
-  const userSegmentDoc = await UserSegment.findOne({ 
-    userId, 
-    chain: "ethereum" 
-  }).sort({ asOf: -1 });
-  
-  const userSegmentClass = userSegmentDoc?.class || "D";
-  
+
+  const userSegmentClass = requestedSegment;
 
   // 4. Kampanyanın ilgili segment'ini bul
-  const segment = campaign.segments.find(s => s.name === userSegmentClass);
-  
+  const segment = campaign.segments.find((s) => s.name === userSegmentClass);
+
   if (!segment) {
-    const err = new Error(`Segment ${userSegmentClass} not found in this campaign.`);
+    const err = new Error(
+      `Segment ${userSegmentClass} not found in this campaign.`
+    );
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
 
   // 5. Segment kontenjan kontrolü (sadece yeni katılımlarda ve admin değilse)
   if (role !== "admin" && !existingParticipation) {
-    if (segment.maxParticipants > 0 && 
-        segment.currentParticipants >= segment.maxParticipants) {
-      const err = new Error(`The quota for segment ${userSegmentClass} is full.`);
+    if (
+      segment.maxParticipants > 0 &&
+      segment.currentParticipants >= segment.maxParticipants
+    ) {
+      const err = new Error(
+        `The quota for segment ${userSegmentClass} is full.`
+      );
       err.statusCode = StatusCodes.BAD_REQUEST;
       throw err;
     }
@@ -230,7 +229,6 @@ exports.joinCampaign = async (req) => {
     // Segment katılımcı sayısını artır
     segment.currentParticipants += 1;
     await campaign.save();
-    
   }
 
   return {
@@ -241,7 +239,7 @@ exports.joinCampaign = async (req) => {
     segmentQuota: {
       current: segment.currentParticipants,
       max: segment.maxParticipants,
-      available: segment.maxParticipants - segment.currentParticipants
+      available: segment.maxParticipants - segment.currentParticipants,
     },
     reward: segment.reward,
     message: "Successfully joined/continued the campaign.",
@@ -295,7 +293,7 @@ exports.create = async (req) => {
     title,
     description,
     content,
-    segments,        // ✅ YENİ: Segment array
+    segments, // ✅ YENİ: Segment array
     startDate,
     endDate,
     questions,
@@ -315,16 +313,16 @@ exports.create = async (req) => {
   }
 
   // Her segment için currentParticipants'ı 0 olarak ayarla
-  const processedSegments = segments.map(segment => ({
+  const processedSegments = segments.map((segment) => ({
     ...segment,
-    currentParticipants: segment.currentParticipants || 0
+    currentParticipants: segment.currentParticipants || 0,
   }));
 
   const campaign = new Campaign({
     title,
     description,
     content,
-    segments: processedSegments,  // ✅ YENİ: Segments array
+    segments: processedSegments, // ✅ YENİ: Segments array
     startDate,
     endDate,
     questions,
@@ -387,12 +385,12 @@ exports.update = async (req) => {
     if (existingCampaign && existingCampaign.segments) {
       req.body.segments = req.body.segments.map((newSegment, index) => {
         const existingSegment = existingCampaign.segments.find(
-          s => s.name === newSegment.name
+          (s) => s.name === newSegment.name
         );
         return {
           ...newSegment,
           // CurrentParticipants'ı koru
-          currentParticipants: existingSegment?.currentParticipants || 0
+          currentParticipants: existingSegment?.currentParticipants || 0,
         };
       });
     }
@@ -498,7 +496,7 @@ exports.listCompletedUsers = async (req) => {
   // Progress, user ve campaign bilgilerini topla
   const progresses = await UserProgress.find(filter)
     .populate("userId", "name email")
-    .populate("campaignId", "title segments")  // ✅ YENİ: segments
+    .populate("campaignId", "title segments") // ✅ YENİ: segments
     .lean();
 
   if (!progresses.length) return [];
@@ -541,7 +539,7 @@ exports.listCompletedUsers = async (req) => {
     const airdropWallet = airdropWalletDoc?.address || null;
 
     // ✅ YENİ: Kullanıcının segmentine göre reward hesapla (segments array'den)
-    const segment = p.campaignId.segments?.find(s => s.name === segmentClass);
+    const segment = p.campaignId.segments?.find((s) => s.name === segmentClass);
     const segmentReward = segment?.reward || 0;
 
     results.push({
@@ -639,10 +637,10 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
     if (progress.campaignId && progress.campaignId.segments) {
       // ✅ YENİ: Segment array'inden kullanıcının segment'ini bul
       const segment = progress.campaignId.segments.find(
-        s => s.name === userSegmentClass
+        (s) => s.name === userSegmentClass
       );
       const segmentReward = segment?.reward || 0;
-      
+
       actualEarnings += segmentReward;
       completedCampaignDetails.push({
         campaignId: progress.campaignId._id,
@@ -667,7 +665,7 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
 
   for (const campaign of userSegmentCampaigns) {
     // ✅ YENİ: Segment array'inden kullanıcının segment'ini bul
-    const segment = campaign.segments?.find(s => s.name === userSegmentClass);
+    const segment = campaign.segments?.find((s) => s.name === userSegmentClass);
 
     if (segment && segment.maxParticipants > 0) {
       const segmentReward = segment.reward || 0;
@@ -699,10 +697,10 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
     if (progress.campaignId && progress.campaignId.segments) {
       // ✅ YENİ: Segment array'inden kullanıcının segment'ini bul
       const segment = progress.campaignId.segments.find(
-        s => s.name === userSegmentClass
+        (s) => s.name === userSegmentClass
       );
       const segmentReward = segment?.reward || 0;
-      
+
       inProgressCampaigns.push({
         campaignId: progress.campaignId._id,
         title: progress.campaignId.title,
@@ -761,10 +759,7 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
 // ✅ GÜNCELLENDİ: Reward status (segment-based)
 exports.getRewardStatus = async (req) => {
   const { id: campaignId } = req.params;
-  const campaign = await Campaign.findById(
-    campaignId,
-    "title segments"
-  ).lean();
+  const campaign = await Campaign.findById(campaignId, "title segments").lean();
 
   if (!campaign) {
     const err = new Error("Campaign not found.");
@@ -773,20 +768,30 @@ exports.getRewardStatus = async (req) => {
   }
 
   // Her segment için quota ve current participant bilgisi
-  const segmentStatus = campaign.segments.map(segment => ({
+  const segmentStatus = campaign.segments.map((segment) => ({
     name: segment.name,
     maxParticipants: segment.maxParticipants,
     currentParticipants: segment.currentParticipants,
     available: segment.maxParticipants - segment.currentParticipants,
     reward: segment.reward,
-    fillRate: segment.maxParticipants > 0 
-      ? ((segment.currentParticipants / segment.maxParticipants) * 100).toFixed(2) + '%'
-      : '0%'
+    fillRate:
+      segment.maxParticipants > 0
+        ? (
+            (segment.currentParticipants / segment.maxParticipants) *
+            100
+          ).toFixed(2) + "%"
+        : "0%",
   }));
 
   // Toplam istatistikler
-  const totalMax = campaign.segments.reduce((sum, s) => sum + s.maxParticipants, 0);
-  const totalCurrent = campaign.segments.reduce((sum, s) => sum + s.currentParticipants, 0);
+  const totalMax = campaign.segments.reduce(
+    (sum, s) => sum + s.maxParticipants,
+    0
+  );
+  const totalCurrent = campaign.segments.reduce(
+    (sum, s) => sum + s.currentParticipants,
+    0
+  );
 
   return {
     campaignTitle: campaign.title,
@@ -795,9 +800,10 @@ exports.getRewardStatus = async (req) => {
       totalMaxParticipants: totalMax,
       totalCurrentParticipants: totalCurrent,
       totalAvailable: totalMax - totalCurrent,
-      overallFillRate: totalMax > 0 
-        ? ((totalCurrent / totalMax) * 100).toFixed(2) + '%'
-        : '0%'
-    }
+      overallFillRate:
+        totalMax > 0
+          ? ((totalCurrent / totalMax) * 100).toFixed(2) + "%"
+          : "0%",
+    },
   };
 };

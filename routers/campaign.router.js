@@ -37,7 +37,7 @@ router.get(
 
 // ✅ YENİ: Kampanyaya katıl
 router.post(
-  "/:id/join",
+  "/:id/join/:segment?",
   middlewares.authMiddleware,
   controller.campaignController.joinCampaign
 );
