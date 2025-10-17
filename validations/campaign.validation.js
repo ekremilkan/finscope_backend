@@ -259,6 +259,36 @@ const createCampaignSchema = Joi.object({
       return value;
     }, 'Geçerli bir Twitter URL\'si giriniz (twitter.com veya x.com)'),
   
+  telegram_url: Joi.string()
+    .uri()
+    .allow('', null)
+    .messages({
+      'string.uri': 'Geçerli bir Telegram URL\'si giriniz'
+    })
+    .custom((value, helpers) => {
+      if (!value) return value; // Opsiyonel alan
+      // Telegram URL format kontrolü
+      if (!/^https?:\/\/(www\.)?(t\.me|telegram\.me)\/.+/.test(value)) {
+        return helpers.error('any.invalid');
+      }
+      return value;
+    }, 'Geçerli bir Telegram URL\'si giriniz (t.me veya telegram.me)'),
+  
+  website_url: Joi.string()
+    .uri()
+    .allow('', null)
+    .messages({
+      'string.uri': 'Geçerli bir website URL\'si giriniz'
+    })
+    .custom((value, helpers) => {
+      if (!value) return value; // Opsiyonel alan
+      // Website URL format kontrolü
+      if (!/^https?:\/\/.+/.test(value)) {
+        return helpers.error('any.invalid');
+      }
+      return value;
+    }, 'Geçerli bir website URL\'si giriniz'),
+  
   status: Joi.string()
     .valid('active','inactive','expired','upcoming')
     .default('upcoming'),
