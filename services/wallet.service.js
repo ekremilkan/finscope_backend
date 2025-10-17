@@ -64,7 +64,6 @@ exports.verifySignatureAndConnect = async (req) => {
   // --- NEW AND SAFE SAVE LOGIC ---
   let newWallet;
   try {
-    console.log(`[DB] Saving new wallet: ${recoveredAddress}`);
     newWallet = new Wallet({
       user: authenticatedUser.userId,
       address: recoveredAddress,
@@ -72,22 +71,17 @@ exports.verifySignatureAndConnect = async (req) => {
       isVerified: true,
     });
     await newWallet.save();
-    console.log(`[DB] New wallet successfully saved. ID: ${newWallet._id}`);
 
-    console.log(`[DB] Updating user: ${authenticatedUser.userId}`);
     await User.findByIdAndUpdate(
       authenticatedUser.userId,
       { $push: { wallets: newWallet._id } }
     );
-    console.log(`[DB] User successfully updated.`);
 
-    console.log(`[DB] Updating global wallet list: ${authenticatedUser.email}`);
     await userWallets.findOneAndUpdate(
         { email: authenticatedUser.email },
         { $addToSet: { address: recoveredAddress } },
         { upsert: true, new: true }
     );
-    console.log(`[DB] Global wallet list successfully updated.`);
     
     return {
       message: "Wallet successfully verified and linked to your account.",
@@ -96,7 +90,6 @@ exports.verifySignatureAndConnect = async (req) => {
   } catch (dbError) {
     console.error("💥 Critical error during database save:", dbError);
     if (newWallet && newWallet._id) {
-      console.log(`[DB Rollback] Deleting wallet due to failed operation: ${newWallet._id}`);
       await Wallet.findByIdAndDelete(newWallet._id);
     }
     throw new Error("A database error occurred while saving the wallet.");

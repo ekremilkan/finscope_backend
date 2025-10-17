@@ -26,13 +26,10 @@ try {
       api_key: process.env.CLOUDINARY_API_KEY,
       api_secret: process.env.CLOUDINARY_API_SECRET
     });
-    console.log('✅ Cloudinary yapılandırıldı');
   } else {
-    console.log('⚠️ Cloudinary environment variables eksik, local storage kullanılacak');
     cloudinary = null;
   }
 } catch (error) {
-  console.log('⚠️ Cloudinary yapılandırılmamış, local storage kullanılacak');
   cloudinary = null;
 }
 
@@ -40,7 +37,6 @@ try {
 const uploadDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
-  console.log('✅ Uploads klasörü oluşturuldu:', uploadDir);
 }
 
 // Multer konfigürasyonu
@@ -159,14 +155,12 @@ class UploadService {
             storage: 'cloudinary'
           };
         } catch (cloudinaryError) {
-          console.log('⚠️ Cloudinary hatası, local storage kullanılıyor:', cloudinaryError.message);
           // Cloudinary hatası durumunda local storage'a geç
         }
       }
 
       // Local storage (varsayılan)
       const localUrl = getLocalFileUrl(file.filename);
-      console.log('✅ Dosya local storage\'a yüklendi:', localUrl);
       
       return {
         ...fileInfo,

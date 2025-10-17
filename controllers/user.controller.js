@@ -4,7 +4,6 @@ const baseResponse = require("../dto/baseresponse.dto");
 
 exports.register = async (req, res) => {
   try {
-    console.log("Register İsteği:", req.body);
 
     const data = await userService.user.register(req);
     res.status(StatusCodes.CREATED).json({

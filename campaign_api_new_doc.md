@@ -973,7 +973,6 @@ const joinCampaign = async (campaignId: string) => {
     });
     
     // Kontenjan durumunu göster
-    console.log(`Kalan kontenjan: ${segmentQuota.available}/${segmentQuota.max}`);
     
   } catch (error) {
     if (error.response?.status === 400) {

@@ -102,7 +102,6 @@ exports.completeQuiz = async (req) => {
             { new: true }
           );
           
-          console.log(`Referral bonus ${referralBonus} added to user ${inviterId} (segment: ${segmentClass})`);
         }
       }
     }
@@ -186,7 +185,6 @@ exports.joinCampaign = async (req) => {
   
   const userSegmentClass = userSegmentDoc?.class || "D";
   
-  console.log(`User ${userId} segment: ${userSegmentClass}`);
 
   // 4. Kampanyanın ilgili segment'ini bul
   const segment = campaign.segments.find(s => s.name === userSegmentClass);
@@ -233,7 +231,6 @@ exports.joinCampaign = async (req) => {
     segment.currentParticipants += 1;
     await campaign.save();
     
-    console.log(`Segment ${userSegmentClass} participants: ${segment.currentParticipants}/${segment.maxParticipants}`);
   }
 
   return {

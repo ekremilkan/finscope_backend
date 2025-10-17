@@ -7,7 +7,6 @@ const TronWeb = require('tronweb');
  */
 const getEthereumBalance = async (address) => {
   try {
-    console.log(`🔍 Ethereum bakiye sorgulanıyor: ${address}`);
     
     // Ücretsiz RPC endpoint'leri
     const rpcEndpoints = [
@@ -25,10 +24,8 @@ const getEthereumBalance = async (address) => {
       try {
         provider = new ethers.JsonRpcProvider(rpc);
         await provider.getNetwork(); // Bağlantı testi
-        console.log(`✅ Bağlantı başarılı: ${rpc}`);
         break;
       } catch (err) {
-        console.log(`❌ RPC başarısız: ${rpc} - ${err.message}`);
         lastError = err;
         provider = null;
       }
@@ -42,7 +39,6 @@ const getEthereumBalance = async (address) => {
     const balance = await provider.getBalance(address);
     const ethBalance = ethers.formatEther(balance);
     
-    console.log(`💰 ETH Bakiye: ${ethBalance}`);
     
     // USD değerini basit fiyat ile hesapla (gerçek projede CoinGecko kullanın)
     const ethPrice = 1700; // Demo fiyat
@@ -75,7 +71,6 @@ const getEthereumBalance = async (address) => {
  */
 const getSolanaBalance = async (address) => {
   try {
-    console.log(`🔍 Solana bakiye sorgulanıyor: ${address}`);
     
     // Ücretsiz Solana RPC endpoint'leri
     const rpcEndpoints = [
@@ -92,10 +87,8 @@ const getSolanaBalance = async (address) => {
       try {
         connection = new Connection(rpc);
         await connection.getVersion(); // Bağlantı testi
-        console.log(`✅ Solana bağlantı başarılı: ${rpc}`);
         break;
       } catch (err) {
-        console.log(`❌ Solana RPC başarısız: ${rpc} - ${err.message}`);
         lastError = err;
         connection = null;
       }
@@ -109,7 +102,6 @@ const getSolanaBalance = async (address) => {
     const balance = await connection.getBalance(publicKey);
     const solBalance = (balance / LAMPORTS_PER_SOL).toFixed(9);
     
-    console.log(`💰 SOL Bakiye: ${solBalance}`);
     
     const solPrice = 20; // Demo fiyat
     const usdValue = (parseFloat(solBalance) * solPrice).toFixed(2);
@@ -141,7 +133,6 @@ const getSolanaBalance = async (address) => {
  */
 const getBNBChainBalance = async (address) => {
   try {
-    console.log(`🔍 BNB Chain bakiye sorgulanıyor: ${address}`);
     
     // Ücretsiz BSC RPC endpoint'leri
     const rpcEndpoints = [
@@ -157,10 +148,8 @@ const getBNBChainBalance = async (address) => {
       try {
         provider = new ethers.JsonRpcProvider(rpc);
         await provider.getNetwork();
-        console.log(`✅ BSC bağlantı başarılı: ${rpc}`);
         break;
       } catch (err) {
-        console.log(`❌ BSC RPC başarısız: ${rpc} - ${err.message}`);
         lastError = err;
         provider = null;
       }
@@ -173,7 +162,6 @@ const getBNBChainBalance = async (address) => {
     const balance = await provider.getBalance(address);
     const bnbBalance = ethers.formatEther(balance);
     
-    console.log(`💰 BNB Bakiye: ${bnbBalance}`);
     
     const bnbPrice = 250; // Demo fiyat
     const usdValue = (parseFloat(bnbBalance) * bnbPrice).toFixed(2);
@@ -205,7 +193,6 @@ const getBNBChainBalance = async (address) => {
  */
 const getBaseBalance = async (address) => {
   try {
-    console.log(`🔍 Base bakiye sorgulanıyor: ${address}`);
     
     // Base network RPC endpoint'leri
     const rpcEndpoints = [
@@ -221,10 +208,8 @@ const getBaseBalance = async (address) => {
       try {
         provider = new ethers.JsonRpcProvider(rpc);
         await provider.getNetwork();
-        console.log(`✅ Base bağlantı başarılı: ${rpc}`);
         break;
       } catch (err) {
-        console.log(`❌ Base RPC başarısız: ${rpc} - ${err.message}`);
         lastError = err;
         provider = null;
       }
@@ -237,7 +222,6 @@ const getBaseBalance = async (address) => {
     const balance = await provider.getBalance(address);
     const ethBalance = ethers.formatEther(balance);
     
-    console.log(`💰 Base ETH Bakiye: ${ethBalance}`);
     
     const ethPrice = 1700; // Demo fiyat
     const usdValue = (parseFloat(ethBalance) * ethPrice).toFixed(2);
@@ -269,7 +253,6 @@ const getBaseBalance = async (address) => {
  */
 const getTronBalance = async (address) => {
   try {
-    console.log(`🔍 Tron bakiye sorgulanıyor (MOCK): ${address}`);
     
     // Tron için mock data (gerçek TronWeb API karmaşık)
     return {
@@ -299,7 +282,6 @@ const getTronBalance = async (address) => {
  */
 const getSUIBalance = async (address) => {
   try {
-    console.log(`🔍 SUI bakiye sorgulanıyor (MOCK): ${address}`);
     
     // SUI için mock data (gerçek API karmaşık)
     return {

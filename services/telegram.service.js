@@ -421,7 +421,6 @@ bot.command("userwallet", async (ctx) => {
   try {
     const parts = (ctx.message?.text || "").trim().split(/\s+/);
     const email = (parts[1] || "").toLowerCase();
-    console.log("userwallet for email:", email);
     if (!email || !/@/.test(email)) {
       await ctx.reply(
         "Lütfen geçerli bir email adresi gir. Örnek: /userWallet <email>"
@@ -496,10 +495,8 @@ async function initTelegram(app) {
     const path = webhookPath();
     await bot.telegram.setWebhook(`${appUrl}${path}`);
     app.use(path, webhookCallback(bot, "express"));
-    console.log(`✅ Telegram webhook set: ${appUrl}${path}`);
   } else {
     await bot.launch();
-    console.log("✅ Telegram bot launched with long polling");
   }
 
   process.once("SIGINT", () => bot.stop("SIGINT"));

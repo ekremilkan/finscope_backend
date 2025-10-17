@@ -8,7 +8,6 @@ let store = {};
 try {
   if (fs.existsSync(storePath)) {
     store = JSON.parse(fs.readFileSync(storePath, 'utf-8'));
-    console.log('✅ Kalıcı nonce deposu dosyadan yüklendi.');
   }
 } catch (error) {
   console.error('❌ Kalıcı nonce deposu okunamadı:', error);

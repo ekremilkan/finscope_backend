@@ -609,7 +609,6 @@ const response = await fetch(`${API_URL}/api/v1/wallets/validate-address`, {
 });
 
 const result = await response.json();
-console.log(result);
 ```
 
 #### 2. Desteklenen Ağlar

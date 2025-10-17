@@ -9,7 +9,6 @@ const {
 
 exports.register = async (req) => {
   const { name, email, password, role, telegramInitData } = req.body;
-  console.log("Register İsteği:", req.body);
   
   let telegram = null;
   if (telegramInitData) {
@@ -196,7 +195,6 @@ exports.resendVerificationCode = async (req) => {
 };
 
 exports.verifyLogin = async (req) => {
-  console.log("Gelen Doğrulama İsteği:", req.body);
   const { email, verificationCode } = req.body;
 
   // 1. ADIM: Önce kullanıcıyı SADECE e-posta adresiyle bul.
@@ -258,7 +256,6 @@ exports.logout = async (req) => {
     // user.clearAccessToken();
     user.refreshToken = null;
     await user.save();
-    console.log(`User ${userId} logged out successfully.`);
   }
   return { message: "Logout successful" };
 };
@@ -290,7 +287,6 @@ exports.getUserByName = async (req) => {
 };
 
 exports.updateUserName = async (req) => {
-  console.log("GELEN İSTEĞİN BODY'Sİ:", req.body);
   const { userId } = req.params;
   const { newName } = req.body;
 

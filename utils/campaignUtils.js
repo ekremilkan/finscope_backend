@@ -19,7 +19,6 @@ exports.updateExpiredCampaigns = async () => {
       }
     );
     
-    console.log(`✅ ${result.modifiedCount} kampanya süresi doldu olarak işaretlendi`);
     return result;
   } catch (error) {
     console.error('❌ Kampanya güncelleme hatası:', error.message);
@@ -91,7 +90,6 @@ exports.checkAndUpdateCampaignStatus = async (campaignId) => {
     
     if (statusChanged) {
       await campaign.save();
-      console.log(`✅ Kampanya ${campaign.title} durumu ${campaign.status} olarak güncellendi`);
     }
     
     return campaign;

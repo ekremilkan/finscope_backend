@@ -847,7 +847,6 @@ const createCampaign = async (campaignData) => {
     const result = await response.json();
     
     if (result.success) {
-      console.log('Kampanya oluşturuldu:', result.data);
       return result.data;
     } else {
       throw new Error(result.message);
@@ -873,7 +872,6 @@ const createQuestion = async (questionData) => {
     const result = await response.json();
     
     if (result.success) {
-      console.log('Soru oluşturuldu:', result.data);
       return result.data;
     } else {
       throw new Error(result.message);

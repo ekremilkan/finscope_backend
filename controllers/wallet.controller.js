@@ -6,7 +6,6 @@ const utils = require("../utils/index");
 
 exports.generateNonce = async (req, res) => {
   try {
-     console.log("✅ /nonce endpoint'ine istek geldi. Query:", req.query);
     const json = await walletService.generateNonce(req);
     res.status(StatusCodes.CREATED).json({
       ...baseResponse,
@@ -51,7 +50,6 @@ exports.verifySignatureAndConnect = async (req, res) => {
 
 exports.getWalletStatus = async (req, res) => {
   try {
-    console.log("📡 /wallet/status endpoint'ine istek geldi. Query:", req.query);
     const data = await walletService.getWalletStatus(req);
     res.status(StatusCodes.OK).json({
       ...baseResponse,
@@ -74,7 +72,6 @@ exports.getWalletStatus = async (req, res) => {
 
 exports.getUserWallets = async (req, res) => {
   try {
-    console.log("📡 /wallets endpoint'ine istek geldi.");
     const data = await walletService.getUserWallets(req);
     res.status(StatusCodes.OK).json({
       ...baseResponse,
@@ -97,7 +94,6 @@ exports.getUserWallets = async (req, res) => {
 
 exports.deleteWallet = async (req, res) => {
   try {
-    console.log("🗑️ /wallet/:address DELETE isteği alındı. Params:", req.params);
     const data = await walletService.deleteWallet(req);
     res.status(StatusCodes.OK).json({
       ...baseResponse,
@@ -120,7 +116,6 @@ exports.deleteWallet = async (req, res) => {
 
 exports.updateWalletNetwork = async (req, res) => {
   try {
-    console.log("🛠️ /wallet/:address/network endpoint'ine istek geldi. Params:", req.params, "Body:", req.body);
 
     const json = await walletService.updateWalletNetwork(req);
 
