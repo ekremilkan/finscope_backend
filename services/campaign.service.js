@@ -337,6 +337,7 @@ exports.create = async (req) => {
     website_url,
     createdUserId,
     isAdminAccept: role === "admin" ? true : false,
+    isActive: false,  // ✅ Admin kampanyaları inaktif olarak kaydedilir
   });
 
   await campaign.save();
