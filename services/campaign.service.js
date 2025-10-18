@@ -335,7 +335,7 @@ exports.create = async (req) => {
     website_url,
     createdUserId,
     isAdminAccept: role === "admin" ? true : false,
-    isActive: false,  // ✅ Admin kampanyaları inaktif olarak kaydedilir
+    isActive: false, // ✅ Admin kampanyaları inaktif olarak kaydedilir
   });
 
   await campaign.save();
@@ -592,36 +592,15 @@ exports.updateQuestionCount = updateCampaignQuestionCount;
 // ✅ YENİ: Kullanıcının segmentine göre potansiyel kazanç analizi
 exports.getUserSegmentEarningsAnalysis = async (req) => {
   const userId = req.user.userId;
+  const segment = req.params.segment;
+
+  const VALID_SEGMENTS = new Set(["A", "B", "C", "D"]);
+  const requestedSegment = VALID_SEGMENTS.has(segment?.toString().toUpperCase())
+    ? segment.toString().toUpperCase()
+    : null;
 
   // 1. Kullanıcının mevcut segmentini al
-  const preferredWindow = `${process.env.SEGMENT_WINDOW_DAYS || 90}d`;
-  let userSegment = await UserSegment.findOne({
-    userId,
-    chain: "ethereum",
-    window: preferredWindow,
-  })
-    .sort({ asOf: -1 })
-    .lean();
-
-  if (!userSegment) {
-    // Fallback: en güncel segment
-    userSegment = await UserSegment.findOne({
-      userId,
-      chain: "ethereum",
-    })
-      .sort({ asOf: -1 })
-      .lean();
-  }
-
-  if (!userSegment) {
-    const err = new Error(
-      "User segment not found. Please complete wallet verification first."
-    );
-    err.statusCode = StatusCodes.NOT_FOUND;
-    throw err;
-  }
-
-  const userSegmentClass = userSegment.class; // A, B, C, D
+  const userSegmentClass = requestedSegment;
 
   // 2. Kullanıcının tamamladığı kampanyaları ve kazandığı ödülleri hesapla
   const completedCampaigns = await UserProgress.find({
@@ -637,7 +616,8 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
 
   let actualEarnings = 0;
   const completedCampaignDetails = [];
-
+  console.log("Completed Campaigns:", completedCampaigns);
+  
   for (const progress of completedCampaigns) {
     if (progress.campaignId && progress.campaignId.segments) {
       // ✅ YENİ: Segment array'inden kullanıcının segment'ini bul
@@ -735,10 +715,6 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
   return {
     userSegment: {
       class: userSegmentClass,
-      compositeScore: userSegment.compositeScore,
-      percentile: userSegment.percentile,
-      confidence: userSegment.confidence,
-      asOf: userSegment.asOf,
     },
     earnings: {
       actualEarnings,
