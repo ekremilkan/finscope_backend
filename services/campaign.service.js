@@ -599,6 +599,13 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
     ? segment.toString().toUpperCase()
     : null;
 
+  // Segment parametresi kontrolü
+  if (!requestedSegment) {
+    const err = new Error("Geçerli bir segment parametresi gerekli (A, B, C, D)");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
   // 1. Kullanıcının mevcut segmentini al
   const userSegmentClass = requestedSegment;
 
@@ -610,7 +617,7 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
   })
     .populate(
       "campaignId",
-      "title rewards maxParticipants currentParticipants status isActive isAdminAccept"
+      "title segments status isActive isAdminAccept"
     )
     .lean();
 
