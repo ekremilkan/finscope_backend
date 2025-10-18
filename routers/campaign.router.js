@@ -10,7 +10,6 @@ router.post(
   "/create",
   middlewares.authMiddleware,
   middlewares.roleMiddleware.requireAdminOrCustomer,
-  validation.campaignValidation.validateCreateCampaign,
   controller.campaignController.create
 );
 

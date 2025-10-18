@@ -223,8 +223,8 @@ class UploadService {
   static validateFile(file) {
     const errors = [];
 
-    // Dosya boyutu kontrolü (10MB)
-    const maxSize = 10 * 1024 * 1024;
+    // Dosya boyutu kontrolü (200MB)
+    const maxSize = 200 * 1024 * 1024;
     if (file.size > maxSize) {
       errors.push(`Dosya boyutu çok büyük. Maksimum: ${maxSize / (1024 * 1024)}MB`);
     }
