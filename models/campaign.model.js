@@ -1,110 +1,121 @@
 const mongoose = require("mongoose");
 
 // Filter şeması (her segment için birden fazla filtre)
-const filterSchema = new mongoose.Schema({
-  field: {
-    type: String,
-    required: [true, 'Filtre alanı zorunludur'],
-    trim: true,
-    // Örnek: 'age', 'location', 'purchaseAmount', 'lastPurchaseDate'
-  },
-  chain: {
-    type: [String],
-    required: [true, 'Filtre zorunludur'],
-    enum: ['ETH', 'BNB', 'ARB','ETC'],
-    validate: {
-      validator: function(chainArray) {
-        return chainArray && chainArray.length > 0;
+const filterSchema = new mongoose.Schema(
+  {
+    field: {
+      type: String,
+      required: [true, "Filtre alanı zorunludur"],
+      trim: true,
+      // Örnek: 'age', 'location', 'purchaseAmount', 'lastPurchaseDate'
+    },
+    chain: {
+      type: [String],
+      required: [true, "Filtre zorunludur"],
+      enum: ["ETH", "BNB", "ARB", "ETC"],
+      validate: {
+        validator: function (chainArray) {
+          return chainArray && chainArray.length > 0;
+        },
+        message: "En az bir chain seçilmelidir",
       },
-      message: 'En az bir chain seçilmelidir'
-    }
-  },
-  tx_types: {
+    },
+    tx_types: {
       state: {
         type: String,
-        enum: ['and','or'],
-        default: 'and'
+        enum: ["and", "or"],
+        default: "and",
       },
       // bridge, lending, swap, other
-      types: [{
-        name: {
-          type: String,
+      types: [
+        {
+          name: {
+            type: String,
+          },
+          min_value: {
+            type: Number,
+            default: 0,
+          },
+          min_count: {
+            type: Number,
+            default: 0,
+          },
         },
-        min_value:{
-          type: Number,
-          default: 0
-        },
-        min_count: {
-          type: Number,
-          default: 0
-        },
-      }],
+      ],
     },
     token_types: {
       state: {
         type: String,
-        enum: ['and','or'],
-        default: 'and'
+        enum: ["and", "or"],
+        default: "and",
       },
       // meme,ai,stable
-      types: [{
-        name: {
-          type: String,
+      types: [
+        {
+          name: {
+            type: String,
+          },
+          min_value: {
+            type: Number,
+            default: 0,
+          },
+          min_count: {
+            type: Number,
+            default: 0,
+          },
         },
-        min_value:{
-          type: Number,
-          default: 0
-        },
-        min_count: {
-          type: Number,
-          default: 0
-        },
-      }],
-    }
-}, { _id: true });
-
+      ],
+    },
+  },
+  { _id: true }
+);
 
 // Segment şeması
-const segmentSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Segment adı zorunludur'],
-    trim: true,
-    uppercase: true,
-    // Örnek: 'A', 'B', 'C'
-  },
-  reward: {
-    type: Number,
-    required: [true, 'Ödül zorunludur'],
-    min: 0,
-  },
-  maxParticipants: {
-    type: Number,
-    required: [true, 'Maksimum katılımcı sayısı zorunludur'],
-    min: 0,
-  },
-  currentParticipants: {
-    type: Number,
-    required: [true, 'Mevcut katılımcı sayısı zorunludur'],
-    min: 0,
-  },
-  description: {
-    type: String,
-    trim: true,
-    maxlength: [500, 'Açıklama en fazla 500 karakter olabilir']
-  },
-  filters: {
-    type: [filterSchema],
-    validate: {
-      validator: function(filters) {
-        return filters && filters.length > 0;
+const segmentSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, "Segment adı zorunludur"],
+      trim: true,
+      uppercase: true,
+      // Örnek: 'A', 'B', 'C'
+    },
+    reward: {
+      type: Number,
+      required: [true, "Ödül zorunludur"],
+      min: 0,
+    },
+    maxParticipants: {
+      type: Number,
+      required: [true, "Maksimum katılımcı sayısı zorunludur"],
+      min: 0,
+    },
+    // QUIZ görünürlük kotası (YENİ) - varsayılan 10
+    maxPeople: { type: Number, default: 10, min: 0 },
+    currentParticipants: {
+      type: Number,
+      required: [true, "Mevcut katılımcı sayısı zorunludur"],
+      min: 0,
+    },
+    // QUIZ’e gerçekten giren benzersiz kişi sayısı (YENİ)
+    currentPeople: { type: Number, default: 0, min: 0 },
+    description: {
+      type: String,
+      trim: true,
+      maxlength: [500, "Açıklama en fazla 500 karakter olabilir"],
+    },
+    filters: {
+      type: [filterSchema],
+      validate: {
+        validator: function (filters) {
+          return filters && filters.length > 0;
+        },
+        message: "Her segment en az bir filtre içermelidir",
       },
-      message: 'Her segment en az bir filtre içermelidir'
-    }
+    },
   },
-
-}, { _id: true, timestamps: true });
-
+  { _id: true, timestamps: true }
+);
 
 const campaignSchema = new mongoose.Schema({
   title: { type: String, required: true, maxlength: 100 },
@@ -123,11 +134,11 @@ const campaignSchema = new mongoose.Schema({
   segments: {
     type: [segmentSchema],
     validate: {
-      validator: function(segments) {
+      validator: function (segments) {
         return segments && segments.length > 0;
       },
-      message: 'Kampanya en az bir segment içermelidir'
-    }
+      message: "Kampanya en az bir segment içermelidir",
+    },
   },
 
   startDate: { type: Date, required: true },
@@ -160,8 +171,7 @@ const campaignSchema = new mongoose.Schema({
     type: String,
     required: true,
     validate: {
-      validator: (v) =>
-        /^https?:\/\/(www\.)?(twitter\.com|x\.com)\/.+/.test(v),
+      validator: (v) => /^https?:\/\/(www\.)?(twitter\.com|x\.com)\/.+/.test(v),
       message: "Geçerli bir Twitter URL'si giriniz (twitter.com veya x.com)",
     },
   },
@@ -200,19 +210,15 @@ const campaignSchema = new mongoose.Schema({
 
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
-
-},
-);
-
-
+});
 
 // Bitiş tarihi kontrolü ve status güncelleme
 campaignSchema.pre("save", function (next) {
   // Segment isimlerinin benzersiz olduğundan emin ol
-  const segmentNames = this.segments.map(s => s.name);
+  const segmentNames = this.segments.map((s) => s.name);
   const uniqueNames = new Set(segmentNames);
   if (segmentNames.length !== uniqueNames.size) {
-    next(new Error('Segment isimleri benzersiz olmalıdır'));
+    next(new Error("Segment isimleri benzersiz olmalıdır"));
   }
   const now = new Date();
   this.updatedAt = now;
@@ -237,28 +243,28 @@ campaignSchema.pre("validate", function (next) {
   next();
 });
 
-campaignSchema.methods.addSegment = function(segmentData) {
+campaignSchema.methods.addSegment = function (segmentData) {
   this.segments.push(segmentData);
   return this.save();
 };
 // Instance metodları
-campaignSchema.methods.activate = function() {
-  this.status = 'active';
+campaignSchema.methods.activate = function () {
+  this.status = "active";
   return this.save();
 };
 
-campaignSchema.methods.inactive = function() {
-  this.status = 'inactive';
+campaignSchema.methods.inactive = function () {
+  this.status = "inactive";
   return this.save();
 };
 
-campaignSchema.methods.expired = function() {
-  this.status = 'expired';
+campaignSchema.methods.expired = function () {
+  this.status = "expired";
   return this.save();
 };
 
-campaignSchema.methods.upcoming = function() {
-  this.status = 'upcoming';
+campaignSchema.methods.upcoming = function () {
+  this.status = "upcoming";
   return this.save();
 };
 
@@ -267,7 +273,12 @@ campaignSchema.methods.upcoming = function() {
 // ========================================
 
 // 1. Kampanya listeleme ve filtreleme için compound index
-campaignSchema.index({ status: 1, isActive: 1, isAdminAccept: 1, startDate: -1 });
+campaignSchema.index({
+  status: 1,
+  isActive: 1,
+  isAdminAccept: 1,
+  startDate: -1,
+});
 
 // 2. User bazlı kampanya sorgular için
 campaignSchema.index({ createdUserId: 1, status: 1 });
@@ -277,14 +288,16 @@ campaignSchema.index({ endDate: 1, status: 1 });
 campaignSchema.index({ startDate: 1, endDate: 1 });
 
 // 4. Segment bazlı sorgular için (segments array içinde)
-campaignSchema.index({ 'segments.name': 1 });
-campaignSchema.index({ 'segments.currentParticipants': 1, 'segments.maxParticipants': 1 });
+campaignSchema.index({ "segments.name": 1 });
+campaignSchema.index({
+  "segments.currentParticipants": 1,
+  "segments.maxParticipants": 1,
+});
 
 // 5. Tag bazlı arama için
 campaignSchema.index({ tags: 1 });
 
 // 6. Full-text search için (title ve description)
-campaignSchema.index({ title: 'text', description: 'text' });
-
+campaignSchema.index({ title: "text", description: "text" });
 
 module.exports = mongoose.model("Campaign", campaignSchema);

@@ -1,14 +1,14 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const campaignParticipationSchema = new mongoose.Schema({
   campaignId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Campaign',
+    ref: "Campaign",
     required: true,
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: "User",
     required: true,
   },
   joinedAt: {
@@ -17,8 +17,8 @@ const campaignParticipationSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'completed', 'abandoned'],
-    default: 'active',
+    enum: ["active", "completed", "abandoned", "joined"],
+    default: "active",
   },
   score: {
     type: Number,
@@ -35,6 +35,8 @@ const campaignParticipationSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  segment: { type: String }, // yoksa ekleyin
+  eligibleForReward: { type: Boolean, default: true }, // YENİ
   createdAt: {
     type: Date,
     default: Date.now,
@@ -42,25 +44,31 @@ const campaignParticipationSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now,
-  }
+  },
 });
 
 // Participation güncelleme
-campaignParticipationSchema.pre('save', function(next) {
+campaignParticipationSchema.pre("save", function (next) {
   this.updatedAt = new Date();
-  
+
   // Status güncelleme
   if (this.score === 100) {
-    this.status = 'completed';
+    this.status = "completed";
     if (!this.completedAt) {
       this.completedAt = new Date();
     }
   }
-  
+
   next();
 });
 
 // Compound index for unique user-campaign combination
-campaignParticipationSchema.index({ userId: 1, campaignId: 1 }, { unique: true });
+campaignParticipationSchema.index(
+  { userId: 1, campaignId: 1 },
+  { unique: true }
+);
 
-module.exports = mongoose.model('CampaignParticipation', campaignParticipationSchema); 
+module.exports = mongoose.model(
+  "CampaignParticipation",
+  campaignParticipationSchema
+);
