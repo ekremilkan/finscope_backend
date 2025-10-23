@@ -2,12 +2,24 @@
 const { Telegraf, webhookCallback } = require("telegraf");
 const User = require("../models/user.model");
 const Wallet = require("../models/wallet.model");
+const Campaign = require("../models/campaign.model");
 const { ChartJSNodeCanvas } = require("chartjs-node-canvas");
 const mongoose = require("mongoose");
 const WEBAPP_URL = "https://finscope.app";
 
 // Zaman dilimi: İstanbul
 const TZ = "Europe/Istanbul";
+
+const {
+  Types: { ObjectId },
+} = mongoose;
+const ParticipationColl = () =>
+  mongoose.connection.collection("campaignparticipations");
+
+function shortId(id) {
+  const s = String(id || "");
+  return s.length > 8 ? `${s.slice(0, 6)}…${s.slice(-4)}` : s;
+}
 
 // Son N günün (bugün dahil) etiketlerini üret
 function buildDateLabels(days) {
@@ -117,6 +129,27 @@ function toCSV(rows, headers) {
   return [headerLine, ...bodyLines].join("\n");
 }
 
+function fmtTR(date) {
+  if (!date) return "-";
+  try {
+    return new Date(date).toLocaleString("tr-TR", {
+      timeZone: "Europe/Istanbul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return String(date);
+  }
+}
+
+function escapeMd(s = "") {
+  // Telegram Markdown için basit kaçış (başlıkları normal metin olarak güvenle göstermek amacıyla)
+  return String(s).replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&");
+}
+
 /** ENV kontrolü */
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) throw new Error("TELEGRAM_BOT_TOKEN missing");
@@ -133,6 +166,13 @@ function isAllowedChat(chatId) {
   if (!chatId) return false;
   if (allow.length === 0) return true; // boşsa hepsine izin ver
   return allow.includes(String(chatId));
+}
+
+function escapeHtml(s = "") {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 /** Komutlar */
@@ -462,6 +502,496 @@ bot.command("userwallet", async (ctx) => {
   } catch (err) {
     console.error("userwallet error:", err);
     await ctx.reply("Üzgünüm, cüzdan bilgileri alınamadı.");
+  }
+});
+
+// /kampanyalar -> aktif kampanyaları inline buton olarak listeler
+bot.command("campaigns", async (ctx) => {
+  if (!isAllowedChat(ctx.chat?.id)) return;
+
+  try {
+    const now = new Date();
+
+    // Aktif + tarih penceresi içinde olanları getir
+    const campaigns = await Campaign.find(
+      {
+        isActive: true,
+      },
+      { title: 1 }
+    )
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!campaigns || campaigns.length === 0) {
+      await ctx.reply("Şu anda görüntülenebilir bir kampanya bulunamadı.");
+      return;
+    }
+    const inline_keyboard = campaigns.map((c) => [
+      { text: c.title || "Adsız Kampanya", callback_data: `cmp:${c._id}` },
+    ]);
+    await ctx.reply("Mevcut kampanyalar:", {
+      reply_markup: { inline_keyboard },
+    });
+  } catch (err) {
+    console.error("kampanyalar error:", err);
+    await ctx.reply("Üzgünüm, kampanyalar listesi şu anda getirilemedi.");
+  }
+});
+
+// /campaignwinners -> kampanyaları inline butonlarla listeler, tıklanınca kazananları döker
+bot.command("campaignwinners", async (ctx) => {
+  if (!isAllowedChat(ctx.chat?.id)) return;
+
+  try {
+    const campaigns = await Campaign.find({ isActive: true }, { title: 1 })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!campaigns || campaigns.length === 0) {
+      await ctx.reply("Şu anda listelenecek aktif kampanya bulunamadı.");
+      return;
+    }
+
+    const inline_keyboard = campaigns.map((c) => [
+      { text: c.title || "Adsız Kampanya", callback_data: `win:${c._id}` },
+    ]);
+
+    await ctx.reply("Kazananlarını görmek istediğin kampanyayı seç:", {
+      reply_markup: { inline_keyboard },
+    });
+  } catch (err) {
+    console.error("campaignwinners error:", err);
+    await ctx.reply("Üzgünüm, kampanyalar getirilemedi.");
+  }
+});
+
+// /exportcampaignwinners -> kampanyaları inline butonlarla listeler, tıklanınca kazananları CSV olarak gönderir
+bot.command("exportcampaignwinners", async (ctx) => {
+  if (!isAllowedChat(ctx.chat?.id)) return;
+
+  try {
+    const campaigns = await Campaign.find({ isActive: true }, { title: 1 })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!campaigns || campaigns.length === 0) {
+      await ctx.reply("Şu anda listelenecek aktif kampanya bulunamadı.");
+      return;
+    }
+
+    const inline_keyboard = campaigns.map((c) => [
+      { text: c.title || "Adsız Kampanya", callback_data: `wincsv:${c._id}` },
+    ]);
+
+    await ctx.reply(
+      "Kazananlarını CSV olarak indirmek istediğin kampanyayı seç:",
+      { reply_markup: { inline_keyboard } }
+    );
+  } catch (err) {
+    console.error("exportcampaignwinners error:", err);
+    await ctx.reply("Üzgünüm, kampanyalar getirilemedi.");
+  }
+});
+
+// Kampanya detaylarını döndür (inline buton callback)
+bot.on("callback_query", async (ctx) => {
+  try {
+    const data = ctx.callbackQuery?.data || "";
+    // --- winners akışı ---
+    if (data.startsWith("win:")) {
+      if (!isAllowedChat(ctx.chat?.id)) {
+        await ctx.answerCbQuery("Bu sohbet için yetkin yok.");
+        return;
+      }
+
+      const id = data.split(":")[1];
+      if (!id || !ObjectId.isValid(id)) {
+        await ctx.answerCbQuery("Geçersiz kampanya.");
+        return;
+      }
+
+      const campaign = await Campaign.findById(id).lean();
+      if (!campaign) {
+        await ctx.answerCbQuery("Kampanya bulunamadı.");
+        return;
+      }
+
+      await ctx.answerCbQuery();
+
+      const title = escapeHtml(campaign.title || "Kampanya");
+      if (campaign.company_logo) {
+        try {
+          await ctx.replyWithPhoto(campaign.company_logo, {
+            caption: `<b>${title}</b>\nKazananlar`,
+            parse_mode: "HTML",
+          });
+        } catch {
+          await ctx.reply(`<b>${title}</b>\nKazananlar`, {
+            parse_mode: "HTML",
+          });
+        }
+      } else {
+        await ctx.reply(`<b>${title}</b>\nKazananlar`, { parse_mode: "HTML" });
+      }
+
+      const segments = Array.isArray(campaign.segments)
+        ? campaign.segments
+        : [];
+      if (segments.length === 0) {
+        await ctx.reply("Bu kampanya için segment tanımı yok.");
+        return;
+      }
+
+      for (const seg of segments) {
+        const segName = seg?.name ?? "-";
+        const reward = seg?.reward ?? "-";
+        const limit = Number(seg?.maxParticipants ?? seg?.maxPeople ?? 0) || 0;
+
+        if (limit <= 0) {
+          await ctx.reply(
+            `<b>Segment ${escapeHtml(
+              segName
+            )}</b>\nSeçim limiti tanımlı değil.`,
+            { parse_mode: "HTML" }
+          );
+          continue;
+        }
+
+        const pipeline = [
+          {
+            $match: {
+              campaignId: new ObjectId(id),
+              segment: segName,
+              eligibleForReward: true,
+              status: "completed",
+            },
+          },
+          { $sort: { completedAt: 1, timeSpent: 1 } },
+          { $limit: limit },
+          {
+            $lookup: {
+              from: "users",
+              localField: "userId",
+              foreignField: "_id",
+              as: "user",
+            },
+          },
+          { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              _id: 0,
+              userId: 1,
+              joinedAt: 1,
+              completedAt: 1,
+              timeSpent: 1,
+              name: "$user.name",
+              email: "$user.email",
+            },
+          },
+        ];
+
+        let winners = [];
+        try {
+          winners = await ParticipationColl().aggregate(pipeline).toArray();
+        } catch (e) {
+          console.error("winners aggregate error:", e);
+          await ctx.reply(
+            `<b>Segment ${escapeHtml(segName)}</b>\nKazananlar getirilemedi.`,
+            { parse_mode: "HTML" }
+          );
+          continue;
+        }
+
+        if (!winners.length) {
+          await ctx.reply(
+            `<b>Segment ${escapeHtml(segName)}</b>\nUygun kazanan bulunamadı.`,
+            { parse_mode: "HTML" }
+          );
+          continue;
+        }
+
+        const lines = [
+          `<b>Segment ${escapeHtml(segName)}</b> — Ödül: ${escapeHtml(
+            String(reward)
+          )} — Limit: ${limit}`,
+          ``,
+        ];
+
+        winners.forEach((w, idx) => {
+          const nm = escapeHtml(w?.name || "-");
+          const em = escapeHtml(w?.email || "-");
+          const uid = escapeHtml(String(w?.userId || "-"));
+          const comp = fmtTR(w?.completedAt);
+          const tSpent =
+            typeof w?.timeSpent === "number" ? `${w.timeSpent}s` : "-";
+          lines.push(
+            `${
+              idx + 1
+            }. ${nm} (${em}) — ID: <code>${uid}</code> — Tamam: ${escapeHtml(
+              comp
+            )} — Süre: ${escapeHtml(tSpent)}`
+          );
+        });
+
+        await ctx.reply(lines.join("\n"), { parse_mode: "HTML" });
+      }
+
+      return;
+    }
+    if (data.startsWith("wincsv:")) {
+      if (!isAllowedChat(ctx.chat?.id)) {
+        await ctx.answerCbQuery("Bu sohbet için yetkin yok.");
+        return;
+      }
+
+      const id = data.split(":")[1];
+      if (!id || !ObjectId.isValid(id)) {
+        await ctx.answerCbQuery("Geçersiz kampanya.");
+        return;
+      }
+
+      const campaign = await Campaign.findById(id).lean();
+      if (!campaign) {
+        await ctx.answerCbQuery("Kampanya bulunamadı.");
+        return;
+      }
+
+      await ctx.answerCbQuery();
+
+      const segments = Array.isArray(campaign.segments)
+        ? campaign.segments
+        : [];
+      if (segments.length === 0) {
+        await ctx.reply("Bu kampanya için segment tanımı yok.");
+        return;
+      }
+
+      const allRows = []; // CSV satırları
+
+      for (const seg of segments) {
+        const segName = seg?.name ?? "-";
+        const reward = seg?.reward ?? "-";
+        const limit = Number(seg?.maxParticipants ?? seg?.maxPeople ?? 0) || 0;
+
+        if (limit <= 0) {
+          // limit tanımlı değilse atla
+          continue;
+        }
+
+        // winners + user + wallet lookup
+        const pipeline = [
+          {
+            $match: {
+              campaignId: new ObjectId(id),
+              segment: segName,
+              eligibleForReward: true,
+              status: "completed",
+            },
+          },
+          { $sort: { completedAt: 1, timeSpent: 1 } },
+          { $limit: limit },
+          {
+            $lookup: {
+              from: "users",
+              localField: "userId",
+              foreignField: "_id",
+              as: "user",
+            },
+          },
+          { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: "wallets",
+              let: { wids: "$user.wallets" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { $in: ["$_id", { $ifNull: ["$$wids", []] }] },
+                  },
+                },
+                { $project: { address: 1, type: 1, createdAt: 1 } },
+              ],
+              as: "walletDocs",
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              segment: 1,
+              joinedAt: 1,
+              completedAt: 1,
+              timeSpent: 1,
+              userId: 1,
+              userName: "$user.name",
+              userEmail: "$user.email",
+              walletDocs: 1,
+            },
+          },
+        ];
+
+        let winners = [];
+        try {
+          winners = await ParticipationColl().aggregate(pipeline).toArray();
+        } catch (e) {
+          console.error("wincsv aggregate error:", e);
+          continue;
+        }
+
+        for (const w of winners) {
+          const walletCount = Array.isArray(w.walletDocs)
+            ? w.walletDocs.length
+            : 0;
+          const walletAddresses = (w.walletDocs || [])
+            .map((wd) => wd?.address)
+            .filter(Boolean)
+            .join("; ");
+          const walletTypes = (w.walletDocs || [])
+            .map((wd) => wd?.type || "")
+            .filter(Boolean)
+            .join("; ");
+          // DÜZELTME: wd.createdAt kullanılmalı
+          const walletCreatedAt = (w.walletDocs || [])
+            .map((wd) =>
+              wd?.createdAt ? new Date(wd.createdAt).toISOString() : ""
+            )
+            .filter(Boolean)
+            .join("; ");
+
+          allRows.push({
+            segment: segName,
+            reward: String(reward ?? ""),
+            user_name: w.userName || "",
+            user_email: w.userEmail || "",
+            user_id: String(w.userId || ""),
+            joined_at_tr: fmtTR(w.joinedAt),
+            joined_at_iso: w.joinedAt ? new Date(w.joinedAt).toISOString() : "",
+            completed_at_tr: fmtTR(w.completedAt),
+            completed_at_iso: w.completedAt
+              ? new Date(w.completedAt).toISOString()
+              : "",
+            time_spent_seconds:
+              typeof w.timeSpent === "number" ? w.timeSpent : "",
+            wallet_count: walletCount,
+            wallet_addresses: walletAddresses,
+            wallet_types: walletTypes,
+            wallet_created_at_iso: walletCreatedAt,
+          });
+        }
+      }
+
+      if (allRows.length === 0) {
+        await ctx.reply("Bu kampanya için uygun kazanan bulunamadı.");
+        return;
+      }
+
+      // CSV kolon başlıkları
+      const headers = [
+        "segment",
+        "reward",
+        "user_name",
+        "user_email",
+        "user_id",
+        "joined_at_tr",
+        "joined_at_iso",
+        "completed_at_tr",
+        "completed_at_iso",
+        "time_spent_seconds",
+        "wallet_count",
+        "wallet_addresses",
+        "wallet_types",
+        "wallet_created_at_iso",
+      ];
+
+      const csv = toCSV(allRows, headers);
+
+      const ts = new Date();
+      const yyyy = ts.getFullYear();
+      const mm = String(ts.getMonth() + 1).padStart(2, "0");
+      const dd = String(ts.getDate()).padStart(2, "0");
+      const safeTitle = (campaign.title || "campaign").replace(
+        /[^\p{L}\p{N}_-]+/gu,
+        "_"
+      );
+      const filename = `winners_${safeTitle}_${yyyy}${mm}${dd}.csv`;
+
+      await ctx.replyWithDocument(
+        {
+          source: Buffer.from(csv, "utf-8"),
+          filename,
+        },
+        {
+          contentType: "text/csv",
+          caption: `📄 ${
+            campaign.title || "Kampanya"
+          } – Kazananlar (cüzdan bilgileriyle, CSV)`,
+        }
+      );
+
+      return;
+    }
+    if (!data.startsWith("cmp:")) return;
+
+    if (!isAllowedChat(ctx.chat?.id)) {
+      await ctx.answerCbQuery("Bu sohbet için yetkin yok.");
+      return;
+    }
+
+    const id = data.split(":")[1];
+    if (!id) {
+      await ctx.answerCbQuery("Geçersiz kampanya.");
+      return;
+    }
+
+    const c = await Campaign.findById(id).lean();
+    if (!c) {
+      await ctx.answerCbQuery("Kampanya bulunamadı.");
+      return;
+    }
+
+    // Segment metinleri (yalın, kısa)
+    const segLines = (Array.isArray(c.segments) ? c.segments : []).map((s) => {
+      const name = escapeHtml(s?.name ?? "-");
+      const reward = escapeHtml(String(s?.reward ?? "-"));
+      const curP = escapeHtml(String(s?.currentParticipants ?? 0));
+      const maxP = escapeHtml(String(s?.maxParticipants ?? "-"));
+      return `• <b>${name}</b> — Katılımcı: ${curP}/${maxP} — Ödül: ${reward}`;
+    });
+
+    // Önce callback spinner'ı kapat
+    await ctx.answerCbQuery();
+
+    // 1) LOGO (varsa) + kısa caption (sadece başlık)
+    const title = escapeHtml(c.title || "Kampanya");
+    if (c.company_logo) {
+      try {
+        await ctx.replyWithPhoto(c.company_logo, {
+          caption: `<b>${title}</b>`,
+          parse_mode: "HTML",
+        });
+      } catch (e) {
+        // Logo URL’i erişilemezse düz metin başlık gönder
+        console.warn(
+          "Logo fetch failed, sending text title instead:",
+          e?.message
+        );
+        await ctx.reply(`<b>${title}</b>`, { parse_mode: "HTML" });
+      }
+    } else {
+      await ctx.reply(`<b>${title}</b>`, { parse_mode: "HTML" });
+    }
+
+    // 2) Segment detayları (ayrı mesaj)
+    if (segLines.length) {
+      const body = ["<b>Segmentler</b>", ...segLines].join("\n");
+      await ctx.reply(body, { parse_mode: "HTML" });
+    } else {
+      await ctx.reply("Bu kampanya için segment bilgisi bulunamadı.");
+    }
+  } catch (err) {
+    console.error("kampanya detay error:", err);
+    try {
+      await ctx.answerCbQuery("Kampanya detayları getirilemedi.");
+    } catch {}
   }
 });
 

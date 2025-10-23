@@ -173,7 +173,7 @@ exports.joinCampaign = async (req) => {
   const segment = campaign.segments.find((s) => s.name === userSegmentClass);
   if (!segment) {
     const err = new Error(
-      `You cannot join this campaign.`
+      `Cüzdanınız bu kampanyanın segmentlerine uymuyor.`
     );
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
