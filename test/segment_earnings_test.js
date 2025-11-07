@@ -26,7 +26,7 @@ async function testSegmentEarningsAnalysis() {
     }
 
     // 2. Segment earnings analysis endpoint'ini test et
-    console.log('\n2️⃣ Segment earnings analysis endpoint'i test ediliyor...');
+    console.log('\n2️⃣ Segment earnings analysis endpoint test ediliyor...');
     
     const headers = {
       'Authorization': `Bearer ${authToken}`,
@@ -44,10 +44,8 @@ async function testSegmentEarningsAnalysis() {
       
       const data = analysisResponse.data.data;
       
-      console.log(`👤 Kullanıcı Segmenti: ${data.userSegment.class}`);
-      console.log(`📈 Composite Score: ${data.userSegment.compositeScore}`);
-      console.log(`📊 Percentile: ${data.userSegment.percentile}%`);
-      console.log(`🎯 Confidence: ${data.userSegment.confidence}`);
+      console.log(`👤 UserCampaign Kayıtları: ${data.userCampaigns.totalUserCampaigns}`);
+      console.log(`📊 Segmentler: ${data.userCampaigns.segments.join(', ')}`);
       
       console.log('\n💰 Kazanç Analizi:');
       console.log(`💵 Gerçek Kazanç: ${data.earnings.actualEarnings}`);
@@ -58,19 +56,20 @@ async function testSegmentEarningsAnalysis() {
       console.log('\n📋 Kampanya Özeti:');
       console.log(`✅ Tamamlanan: ${data.summary.totalCompletedCampaigns}`);
       console.log(`🎯 Potansiyel: ${data.summary.totalPotentialCampaigns}`);
+      console.log(`❌ Kaçırılan: ${data.summary.totalMissedCampaigns}`);
       console.log(`🔄 Devam Eden: ${data.summary.totalInProgressCampaigns}`);
       
       if (data.campaigns.completed.length > 0) {
         console.log('\n✅ Tamamlanan Kampanyalar:');
         data.campaigns.completed.forEach((campaign, index) => {
-          console.log(`  ${index + 1}. ${campaign.title} - ${campaign.reward} puan`);
+          console.log(`  ${index + 1}. ${campaign.title} - ${campaign.reward} puan (Segment: ${campaign.userSegment})`);
         });
       }
       
       if (data.campaigns.potential.length > 0) {
         console.log('\n🎯 Potansiyel Kampanyalar:');
         data.campaigns.potential.slice(0, 3).forEach((campaign, index) => {
-          console.log(`  ${index + 1}. ${campaign.title} - ${campaign.reward} puan`);
+          console.log(`  ${index + 1}. ${campaign.title} - ${campaign.reward} puan (Segment: ${campaign.userSegment})`);
         });
         if (data.campaigns.potential.length > 3) {
           console.log(`  ... ve ${data.campaigns.potential.length - 3} kampanya daha`);

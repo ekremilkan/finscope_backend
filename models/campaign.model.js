@@ -90,15 +90,11 @@ const segmentSchema = new mongoose.Schema(
       required: [true, "Maksimum katılımcı sayısı zorunludur"],
       min: 0,
     },
-    // QUIZ görünürlük kotası (YENİ) - varsayılan 10
-    maxPeople: { type: Number, default: 10, min: 0 },
     currentParticipants: {
       type: Number,
       required: [true, "Mevcut katılımcı sayısı zorunludur"],
       min: 0,
     },
-    // QUIZ’e gerçekten giren benzersiz kişi sayısı (YENİ)
-    currentPeople: { type: Number, default: 0, min: 0 },
     description: {
       type: String,
       trim: true,

@@ -1,8 +1,8 @@
-# 📊 Segment Earnings Analysis API
+# 📊 Campaign Earnings Analysis API
 
 ## 🎯 Amaç
 
-Bu endpoint, kullanıcının segmentine göre potansiyel kazanç analizi yapar. Kullanıcının mevcut segmentine uygun tüm geçmiş kampanyalara katılmış olsaydı kazanacağı potansiyel ödül ile gerçekte kazandığı ödül arasındaki farkı hesaplar.
+Bu endpoint, kullanıcının UserCampaign kayıtlarına göre potansiyel kazanç analizi yapar. Her kampanyada kullanıcının gerçek segment bilgisini kullanarak, kullanıcının mevcut kampanyalara katılmış olsaydı kazanacağı potansiyel ödül ile gerçekte kazandığı ödül arasındaki farkı hesaplar.
 
 ## 🔗 Endpoint
 
@@ -15,11 +15,10 @@ Authorization: Bearer <jwt_token>
 
 ### Kullanıcı Gereksinimleri
 - ✅ Giriş yapmış olmalı (JWT token gerekli)
-- ✅ Wallet verification tamamlanmış olmalı
-- ✅ UserSegment kaydı mevcut olmalı
+- ✅ UserCampaign kayıtları mevcut olmalı (kampanyalara katılmış olmalı)
 
 ### Veri Gereksinimleri
-- ✅ UserSegment modelinde kullanıcının segment bilgisi
+- ✅ UserCampaign modelinde kullanıcının kampanya-segment bilgileri
 - ✅ Campaign modelinde segment bazlı kontenjan bilgileri
 - ✅ UserProgress modelinde kullanıcının kampanya katılımları
 
@@ -30,12 +29,9 @@ Authorization: Bearer <jwt_token>
 {
   "success": true,
   "data": {
-    "userSegment": {
-      "class": "A",
-      "compositeScore": 85.5,
-      "percentile": 92.3,
-      "confidence": 0.95,
-      "asOf": "2024-12-19T10:30:00.000Z"
+    "userCampaigns": {
+      "totalUserCampaigns": 5,
+      "segments": ["A", "B", "C"]
     },
     "earnings": {
       "actualEarnings": 450,
@@ -49,6 +45,7 @@ Authorization: Bearer <jwt_token>
           "campaignId": "507f1f77bcf86cd799439011",
           "title": "Blockchain Eğitimi",
           "reward": 150,
+          "userSegment": "A",
           "completedAt": "2024-12-15T14:30:00.000Z"
         }
       ],
@@ -57,6 +54,7 @@ Authorization: Bearer <jwt_token>
           "campaignId": "507f1f77bcf86cd799439012",
           "title": "DeFi Kampanyası",
           "reward": 200,
+          "userSegment": "B",
           "segmentMaxParticipants": 100,
           "segmentCurrentParticipants": 85,
           "endDate": "2024-12-20T23:59:59.000Z"
@@ -67,18 +65,14 @@ Authorization: Bearer <jwt_token>
           "campaignId": "507f1f77bcf86cd799439013",
           "title": "NFT Eğitimi",
           "reward": 100,
-          "progress": {
-            "currentQuestion": 3,
-            "totalQuestions": 5,
-            "correctAnswers": 2,
-            "wrongAnswers": 1
-          }
+          "userSegment": "C"
         }
       ]
     },
     "summary": {
       "totalCompletedCampaigns": 3,
       "totalPotentialCampaigns": 8,
+      "totalMissedCampaigns": 5,
       "totalInProgressCampaigns": 1
     }
   },
@@ -99,12 +93,9 @@ Authorization: Bearer <jwt_token>
 
 ## 🔍 Response Alanları Açıklaması
 
-### userSegment
-- **class**: Kullanıcının segment sınıfı (A, B, C, D)
-- **compositeScore**: Segment hesaplama skoru
-- **percentile**: Yüzdelik dilim
-- **confidence**: Güven skoru (0-1 arası)
-- **asOf**: Segment hesaplama tarihi
+### userCampaigns
+- **totalUserCampaigns**: Kullanıcının toplam UserCampaign kayıt sayısı
+- **segments**: Kullanıcının farklı kampanyalarda bulunduğu segmentlerin listesi
 
 ### earnings
 - **actualEarnings**: Gerçekte kazanılan toplam ödül
@@ -113,33 +104,28 @@ Authorization: Bearer <jwt_token>
 - **completionRate**: Tamamlama oranı (%)
 
 ### campaigns
-- **completed**: Tamamlanan kampanyalar listesi
-- **potential**: Kullanıcının segmentine uygun geçmiş kampanyalar
+- **completed**: Tamamlanan kampanyalar listesi (her birinde userSegment bilgisi)
+- **potential**: Kullanıcının UserCampaign'de kaydı olan geçmiş kampanyalar
 - **inProgress**: Katıldığı ama tamamlamadığı kampanyalar
 
 ### summary
 - **totalCompletedCampaigns**: Toplam tamamlanan kampanya sayısı
 - **totalPotentialCampaigns**: Toplam potansiyel kampanya sayısı
+- **totalMissedCampaigns**: Toplam kaçırılan kampanya sayısı
 - **totalInProgressCampaigns**: Toplam devam eden kampanya sayısı
 
 ## 🧮 Hesaplama Mantığı
 
-### 1. Kullanıcı Segmenti Belirleme
+### 1. UserCampaign Kayıtlarını Alma
 ```javascript
-// Önce tercih edilen window'da segment aranır
-let userSegment = await UserSegment.findOne({ 
-  userId, 
-  chain: 'ethereum', 
-  window: '90d' 
-}).sort({ asOf: -1 });
+// Kullanıcının tüm UserCampaign kayıtlarını al
+const userCampaigns = await UserCampaign.find({ user_id: userId }).lean();
 
-// Bulunamazsa en güncel segment alınır
-if (!userSegment) {
-  userSegment = await UserSegment.findOne({ 
-    userId, 
-    chain: 'ethereum' 
-  }).sort({ asOf: -1 });
-}
+// Campaign ID'ye göre segment map'i oluştur
+const userCampaignMap = new Map();
+userCampaigns.forEach(uc => {
+  userCampaignMap.set(uc.campaign_id.toString(), uc.class);
+});
 ```
 
 ### 2. Gerçek Kazanç Hesaplama
@@ -147,18 +133,24 @@ if (!userSegment) {
 const completedCampaigns = await UserProgress.find({
   userId,
   completed: true
-}).populate('campaignId', 'title reward');
+}).populate('campaignId', 'title segments');
 
 let actualEarnings = 0;
 for (const progress of completedCampaigns) {
-  actualEarnings += progress.campaignId.reward || 0;
+  // Bu kampanyada kullanıcının gerçek segmentini bul
+  const userSegment = userCampaignMap.get(progress.campaignId._id.toString());
+  
+  if (userSegment) {
+    const segment = progress.campaignId.segments.find(s => s.name === userSegment);
+    actualEarnings += segment?.reward || 0;
+  }
 }
 ```
 
 ### 3. Potansiyel Kazanç Hesaplama
 ```javascript
 const userSegmentCampaigns = await Campaign.find({
-  status: { $in: ['active', 'expired'] },
+  status: { $in: ['active', 'expired', 'inactive'] },
   isActive: true,
   isAdminAccept: true,
   endDate: { $lte: new Date() }
@@ -166,9 +158,14 @@ const userSegmentCampaigns = await Campaign.find({
 
 let potentialEarnings = 0;
 for (const campaign of userSegmentCampaigns) {
-  const segmentMaxParticipants = campaign.maxParticipants[userSegmentClass] || 0;
-  if (segmentMaxParticipants > 0) {
-    potentialEarnings += campaign.reward;
+  // Bu kampanyada kullanıcının segmentini kontrol et
+  const userSegment = userCampaignMap.get(campaign._id.toString());
+  
+  if (userSegment) {
+    const segment = campaign.segments?.find(s => s.name === userSegment);
+    if (segment && segment.maxParticipants > 0) {
+      potentialEarnings += segment.reward || 0;
+    }
   }
 }
 ```
@@ -202,9 +199,9 @@ curl -X GET "http://localhost:5005/api/v1/campaigns/user/segment-earnings-analys
   -H "Authorization: Bearer <valid_token>"
 ```
 
-### Test 2: Segment Bulunamadı
+### Test 2: UserCampaign Kaydı Yok
 ```bash
-# Wallet verification yapmamış kullanıcı ile test
+# UserCampaign kaydı olmayan kullanıcı ile test
 ```
 
 ### Test 3: Geçersiz Token
@@ -238,6 +235,12 @@ curl -X GET "http://localhost:5005/api/v1/campaigns/user/segment-earnings-analys
 - Karşılaştırmalı analiz (diğer kullanıcılarla)
 
 ## 📝 Changelog
+
+### v2.1.0 (2024-12-19)
+- ✅ Segment parametresi kaldırıldı
+- ✅ UserCampaign tabanlı analiz eklendi
+- ✅ Her kampanya için gerçek segment bilgisi kullanılıyor
+- ✅ Kullanıcının farklı kampanyalarda farklı segmentleri destekleniyor
 
 ### v2.0.0 (2024-12-19)
 - ✅ İlk sürüm

@@ -304,11 +304,26 @@ const createCampaignSchema = Joi.object({
   })
 });
 
+// ========================================
+// Update için Filter ve Segment Şemaları
+// (MongoDB'den gelen _id, createdAt, updatedAt gibi otomatik alanları kabul eder)
+// ========================================
+const updateFilterSchema = filterSchema.unknown(true);
+
+// Update için segment şeması - filters için updateFilterSchema kullan
+const updateSegmentSchema = segmentSchema.fork(['filters'], schema => 
+  schema.items(updateFilterSchema)
+).unknown(true);
+
 // Kampanya güncelleme validation şeması
+// Update için tüm alanları optional yap ve bilinmeyen alanları kabul et
+// (MongoDB'den gelen _id, createdAt, updatedAt gibi otomatik alanlar için)
 const updateCampaignSchema = createCampaignSchema.fork(
   Object.keys(createCampaignSchema.describe().keys),
   schema => schema.optional()
-);
+).fork(['segments'], schema => 
+  schema.items(updateSegmentSchema)
+).unknown(true); // MongoDB'den gelen otomatik alanları (_id, createdAt, updatedAt) kabul et
 
 // Progress update validation
 const updateProgressSchema = Joi.object({
@@ -376,7 +391,13 @@ const validateCreateCampaign = (req, res, next) => {
 };
 
 const validateUpdateCampaign = (req, res, next) => {
-  const { error } = updateCampaignSchema.validate(req.body, { abortEarly: false });
+  // Update için bilinmeyen alanları kabul et (MongoDB otomatik alanları için)
+  const { error } = updateCampaignSchema.validate(req.body, { 
+    abortEarly: false,
+    allowUnknown: true, // MongoDB'den gelen _id, createdAt, updatedAt gibi alanları kabul et
+    stripUnknown: false // Bilinmeyen alanları silme, sadece kabul et
+  });
+  
   if (error) {
     const errors = error.details.map(d => d.message);
     return res.status(400).json({ 
@@ -425,6 +446,10 @@ const validateUpdatePurchase = (req, res, next) => {
     isPurchase: Joi.boolean().required().messages({
       'boolean.base': 'isPurchase boolean olmalıdır',
       'any.required': 'isPurchase alanı zorunludur'
+    }),
+    depositedAmount: Joi.number().min(0).optional().messages({
+      'number.base': 'depositedAmount sayı olmalıdır',
+      'number.min': 'depositedAmount 0 veya daha büyük olmalıdır'
     })
   });
 

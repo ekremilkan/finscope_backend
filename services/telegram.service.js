@@ -645,7 +645,7 @@ bot.on("callback_query", async (ctx) => {
       for (const seg of segments) {
         const segName = seg?.name ?? "-";
         const reward = seg?.reward ?? "-";
-        const limit = Number(seg?.maxParticipants ?? seg?.maxPeople ?? 0) || 0;
+        const limit = Number(seg?.maxParticipants ?? 0) || 0;
 
         if (limit <= 0) {
           await ctx.reply(
@@ -771,7 +771,7 @@ bot.on("callback_query", async (ctx) => {
       for (const seg of segments) {
         const segName = seg?.name ?? "-";
         const reward = seg?.reward ?? "-";
-        const limit = Number(seg?.maxParticipants ?? seg?.maxPeople ?? 0) || 0;
+        const limit = Number(seg?.maxParticipants ?? 0) || 0;
 
         if (limit <= 0) {
           // limit tanımlı değilse atla

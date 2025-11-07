@@ -1,22 +1,22 @@
 /**
- * 10 Adet Örnek Kampanya Verisi Ekleme Scripti
+ * 10 Adet Örnek Kampanya Verisi Ekleme Scripti - Local Database
  * 
- * Bu dosya veritabanına 10 adet örnek kampanya verisi eklemek için kullanılır.
+ * Bu dosya local MongoDB veritabanına 10 adet örnek kampanya verisi eklemek için kullanılır.
  * 
- * Kullanım: node scripts/add_campaign_data.js
+ * Kullanım: node scripts/add_campaign_data_local.js
  */
 
 const mongoose = require('mongoose');
 const User = require('../models/user.model');
 const Campaign = require('../models/campaign.model');
 
-// MongoDB bağlantısı
+// Local MongoDB bağlantısı
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.DB_URI || "mongodb://localhost:27017/finscope_db_local");
-    console.log('✅ MongoDB bağlantısı başarılı');
+    await mongoose.connect("mongodb://localhost:27017/finscope_db_local");
+    console.log('✅ Local MongoDB bağlantısı başarılı');
   } catch (error) {
-    console.error('❌ MongoDB bağlantı hatası:', error.message);
+    console.error('❌ Local MongoDB bağlantı hatası:', error.message);
     process.exit(1);
   }
 };
@@ -1270,9 +1270,9 @@ const createCampaigns = async () => {
 };
 
 // Ana fonksiyon
-const addCampaignData = async () => {
+const addCampaignDataLocal = async () => {
   try {
-    console.log('🚀 10 adet kampanya verisi ekleniyor...\n');
+    console.log('🚀 Local veritabanına 10 adet kampanya verisi ekleniyor...\n');
 
     // Kampanyaları oluştur
     const campaigns = await createCampaigns();
@@ -1287,7 +1287,7 @@ const addCampaignData = async () => {
       console.log('');
     });
 
-    console.log(`✅ Toplam ${campaigns.length} kampanya başarıyla oluşturuldu!`);
+    console.log(`✅ Toplam ${campaigns.length} kampanya local veritabanına başarıyla eklendi!`);
     console.log('\n🔗 Kampanyalar şu durumda:');
     console.log('- Tümü "upcoming" durumunda');
     console.log('- Admin onayı alınmış');
@@ -1298,18 +1298,19 @@ const addCampaignData = async () => {
     console.error('❌ Veri ekleme hatası:', error.message);
   } finally {
     await mongoose.disconnect();
-    console.log('🔌 MongoDB bağlantısı kapatıldı');
+    console.log('🔌 Local MongoDB bağlantısı kapatıldı');
   }
 };
 
 // Script çalıştır
 if (require.main === module) {
   connectDB().then(() => {
-    addCampaignData();
+    addCampaignDataLocal();
   });
 }
 
 module.exports = {
-  addCampaignData,
+  addCampaignDataLocal,
   createCampaigns
 };
+

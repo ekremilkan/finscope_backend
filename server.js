@@ -76,6 +76,7 @@ app.use(`${config.app.prefix}/campaigns`, router.campaignRouter);
 app.use(`${config.app.prefix}/questions`, router.questionRouter);
 app.use(`${config.app.prefix}/upload`, router.uploadRouter);
 app.use(`${config.app.prefix}/segments`, router.segmentsRouter);
+app.use(`${config.app.prefix}/user-campaigns`, router.userCampaignRouter);
 
 // DEĞİŞTİ - config.db.uri ve config.app.port olarak güncellendi
 db.mongooseConnection.connectMongoDB().then(() => {

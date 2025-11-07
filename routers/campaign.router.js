@@ -116,7 +116,7 @@ router.patch(
 
 // ✅ YENİ: Kullanıcının segmentine göre potansiyel kazanç analizi
 router.get(
-  "/user/segment-earnings-analysis/:segment",
+  "/user/segment-earnings-analysis",
   middlewares.authMiddleware,
   controller.campaignController.getUserSegmentEarningsAnalysis
 );

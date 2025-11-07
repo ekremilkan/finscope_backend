@@ -48,6 +48,16 @@ const userProgressSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  earnedAmount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  depositedAmount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
 });
 
 // Progress güncelleme

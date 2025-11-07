@@ -4,6 +4,7 @@ const campaignRouter = require("./campaign.router").campaign;
 const questionRouter = require("./questions.router").question;
 const uploadRouter = require("./upload.router").upload;
 const segmentsRouter = require("./segments.router").segments;
+const userCampaignRouter = require("./userCampaign.router").userCampaign;
 
 module.exports = {
   userRouter,
@@ -12,4 +13,5 @@ module.exports = {
   questionRouter,
   uploadRouter,
   segmentsRouter,
+  userCampaignRouter,
 };
