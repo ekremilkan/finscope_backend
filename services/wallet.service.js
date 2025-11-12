@@ -29,39 +29,41 @@ exports.verifySignatureAndConnect = async (req) => {
   const { message, signature, network } = req.body;
   const { user: authenticatedUser } = req;
 
-  // 1. Input and user check
-  if (!message || !signature || !network) throw new Error("Missing required fields.");
-  if (!authenticatedUser || !authenticatedUser.userId || !authenticatedUser.email) throw new Error("A valid user session is required.");
-  
-  // 2. Signature and nonce validation
+  if (!message || !signature || !network)
+    throw new Error("Missing required fields.");
+  if (!authenticatedUser || !authenticatedUser.userId || !authenticatedUser.email)
+    throw new Error("A valid user session is required.");
+
   const recoveredAddress = ethers.utils.verifyMessage(message, signature).toLowerCase();
   const savedNonce = nonceStore.get(authenticatedUser.email);
-  if (!savedNonce || !message.includes(savedNonce)) {
+  if (!savedNonce || !message.includes(savedNonce))
     throw new Error("Invalid or expired nonce.");
-  }
   nonceStore.delete(authenticatedUser.email);
 
-  // ------------------- NEW PART START -------------------
-  // 3. Global Wallet Check: Is this wallet already registered to another email?
-  const globalWalletCheck = await userWallets.findOne({ address: recoveredAddress });
+  // 🔍 1. Global wallet kontrolü
+  const globalWalletCheck = await Wallet.findOne({ address: recoveredAddress });
+  if (globalWalletCheck && globalWalletCheck.user.toString() !== authenticatedUser.userId)
+    throw new Error("This wallet address is already registered with another user.");
 
-  if (globalWalletCheck && globalWalletCheck.email !== authenticatedUser.email) {
-    throw new Error("This wallet address is already registered with another email address.");
-  }
-  // ------------------- NEW PART END -----------------------
-
-  // 4. User-specific wallet check
-  const existingWallet = await Wallet.findOne({ user: authenticatedUser.userId, address: recoveredAddress });
+  // 🔍 2. Kullanıcıya ait mevcut cüzdan kontrolü
+  const existingWallet = await Wallet.findOne({
+    user: authenticatedUser.userId,
+    address: recoveredAddress,
+  });
 
   if (existingWallet) {
     if (!existingWallet.isVerified) {
-        existingWallet.isVerified = true;
-        await existingWallet.save();
+      existingWallet.isVerified = true;
+      await existingWallet.save();
     }
     return { message: "This wallet is already linked to your account." };
   }
 
-  // --- NEW AND SAFE SAVE LOGIC ---
+  // 📦 3. Kullanıcının mevcut cüzdan sayısını kontrol et
+  const userWalletCount = await Wallet.countDocuments({ user: authenticatedUser.userId });
+  const isFirstWallet = userWalletCount === 0;
+
+  // 🎯 4. Yeni cüzdan oluşturma
   let newWallet;
   try {
     newWallet = new Wallet({
@@ -69,23 +71,21 @@ exports.verifySignatureAndConnect = async (req) => {
       address: recoveredAddress,
       network,
       isVerified: true,
+      isAirdropAddress: isFirstWallet, // İlk cüzdan airdrop olarak atanır
     });
+
     await newWallet.save();
 
-    await User.findByIdAndUpdate(
-      authenticatedUser.userId,
-      { $push: { wallets: newWallet._id } }
-    );
+    await User.findByIdAndUpdate(authenticatedUser.userId, {
+      $push: { wallets: newWallet._id },
+    });
 
-    await userWallets.findOneAndUpdate(
-        { email: authenticatedUser.email },
-        { $addToSet: { address: recoveredAddress } },
-        { upsert: true, new: true }
-    );
-    
     return {
-      message: "Wallet successfully verified and linked to your account.",
+      message: isFirstWallet
+        ? "First wallet linked and set as your airdrop wallet."
+        : "Wallet successfully verified and linked to your account.",
       address: recoveredAddress,
+      isAirdropAddress: isFirstWallet,
     };
   } catch (dbError) {
     console.error("💥 Critical error during database save:", dbError);
@@ -95,6 +95,41 @@ exports.verifySignatureAndConnect = async (req) => {
     throw new Error("A database error occurred while saving the wallet.");
   }
 };
+
+exports.setAirdropWallet = async (req) => {
+  const { adress: walletAddress } = req.params;
+  const { user: authenticatedUser } = req;
+
+  if (!walletAddress)
+    throw new Error("Eksik cüzdan adresi.");
+  if (!authenticatedUser || !authenticatedUser.userId)
+    throw new Error("Geçerli bir kullanıcı oturumu gerekli.");
+
+  const userId = authenticatedUser.userId;
+
+  // Önce tüm cüzdanlardan airdrop flag’ini kaldır
+  await Wallet.updateMany(
+    { user: userId },
+    { $set: { isAirdropAddress: false } }
+  );
+
+  // Seçilen cüzdanı işaretle
+  const updatedWallet = await Wallet.findOneAndUpdate(
+    { address: walletAddress, user: userId },
+    { $set: { isAirdropAddress: true } },
+    { new: true }
+  );
+
+  if (!updatedWallet)
+    throw new Error("Cüzdan bulunamadı veya yetkiniz yok.");
+
+  return {
+    walletId: updatedWallet._id,
+    address: updatedWallet.address,
+    isAirdropAddress: updatedWallet.isAirdropAddress,
+  };
+};
+
 
 exports.getUserWallets = async (req) => {
   try {

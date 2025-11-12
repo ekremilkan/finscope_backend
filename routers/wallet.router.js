@@ -10,6 +10,6 @@ router.get('/getWalletStatus', authMiddleware, walletController.getWalletStatus)
 router.get('/', authMiddleware, walletController.getUserWallets);
 router.delete('/:address', authMiddleware, walletController.deleteWallet);
 router.patch('/:address/network', authMiddleware, walletController.updateWalletNetwork);
-
+router.patch('/:adress/set-airdrop', authMiddleware, walletController.setAirdropWallet);
 
 module.exports = { wallet: router };

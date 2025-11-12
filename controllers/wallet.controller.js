@@ -48,6 +48,28 @@ exports.verifySignatureAndConnect = async (req, res) => {
   }
 };
 
+exports.setAirdropWallet = async (req, res) => {
+  try {
+    const json = await walletService.setAirdropWallet(req);
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      code: StatusCodes.OK,
+      data: json,
+      message: "Airdrop cüzdan başarıyla bağlandı",
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      timestamp: new Date(),
+      code: StatusCodes.INTERNAL_SERVER_ERROR,
+    });
+  }
+};
+
 exports.getWalletStatus = async (req, res) => {
   try {
     const data = await walletService.getWalletStatus(req);
