@@ -1,5 +1,5 @@
 const User = require("../models/user.model");
-const CampaignParticipation = require("../models/campaignParticipation.model");
+const UserProgress = require("../models/userProgress.model");
 const utils = require("../utils/index");
 const bcrypt = require("bcryptjs");
 const { StatusCodes } = require("http-status-codes");
@@ -459,22 +459,22 @@ exports.getTotalUserCount = async () => {
 exports.getUserJoinedCampaigns = async (req) => {
   const { userId } = req.user;
 
-  // 1. CampaignParticipation koleksiyonundan kullanıcının tüm katılımlarını bul.
-  // 'populate', bulduğu katılımlardaki 'campaignId'yi kullanarak Campaign koleksiyonundan
+  // 1. UserProgress koleksiyonundan kullanıcının tüm katılımlarını bul.
+  // 'populate', bulduğu progress kayıtlarındaki 'campaignId'yi kullanarak Campaign koleksiyonundan
   // ilgili kampanyanın tüm detaylarını (başlık, ödül vb.) otomatik olarak çeker.
-  const participations = await CampaignParticipation.find({ userId })
+  const progresses = await UserProgress.find({ userId, joined: true })
     .populate("campaignId") // Campaign detaylarını getirmek için
     .lean();
 
   // Eğer kullanıcı hiçbir kampanyaya katılmamışsa, boş dizi döndür.
-  if (!participations || participations.length === 0) {
+  if (!progresses || progresses.length === 0) {
     return [];
   }
 
   // 2. Frontend'in beklediği formata dönüştür.
-  const result = participations
+  const result = progresses
     .map((p) => {
-      // Silinmiş bir kampanyaya ait katılım kaydı kalmışsa, onu atla.
+      // Silinmiş bir kampanyaya ait progress kaydı kalmışsa, onu atla.
       if (!p.campaignId) return null;
 
       return {

@@ -11,14 +11,48 @@ const userProgressSchema = new mongoose.Schema({
     ref: "Campaign",
     required: true,
   },
+  // Katılım durumu
   joined: {
     type: Boolean,
     default: false,
   },
+  joinedAt: {
+    type: Date,
+    default: null,
+  },
+  // Tamamlanma durumu
   completed: {
     type: Boolean,
     default: false,
   },
+  completedAt: {
+    type: Date,
+    default: null,
+  },
+  // Status (CampaignParticipation'dan)
+  status: {
+    type: String,
+    enum: ["active", "completed", "abandoned", "joined"],
+    default: "active",
+  },
+  // Segment bilgisi (CampaignParticipation'dan)
+  segment: {
+    type: String,
+    default: null,
+  },
+  // Ödül uygunluğu (CampaignParticipation'dan)
+  eligibleForReward: {
+    type: Boolean,
+    default: true,
+  },
+  // Skor (CampaignParticipation'dan)
+  score: {
+    type: Number,
+    default: null,
+    min: 0,
+    max: 100,
+  },
+  // Süre ve tarihler
   timeSpent: {
     type: Number,
     default: 0, // saniye
@@ -28,21 +62,10 @@ const userProgressSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
-  completedAt: {
-    type: Date,
-    default: null,
-  },
+  // Ödeme bilgileri
   isPurchase: {
     type: Boolean,
     default: false,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
   },
   isPaymentEarned: {
     type: Boolean,
@@ -58,11 +81,35 @@ const userProgressSchema = new mongoose.Schema({
     default: 0,
     min: 0,
   },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
 // Progress güncelleme
 userProgressSchema.pre("save", function (next) {
   this.updatedAt = new Date();
+
+  // Status güncelleme (CampaignParticipation'dan)
+  if (this.completed && this.status !== "completed") {
+    this.status = "completed";
+    if (!this.completedAt) {
+      this.completedAt = new Date();
+    }
+  }
+
+  // Score'a göre status güncelleme
+  if (this.score === 100 && this.status !== "completed") {
+    this.status = "completed";
+    if (!this.completedAt) {
+      this.completedAt = new Date();
+    }
+  }
 
   next();
 });

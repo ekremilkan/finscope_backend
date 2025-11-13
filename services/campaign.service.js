@@ -1,6 +1,5 @@
 const Campaign = require("../models/campaign.model");
 const UserProgress = require("../models/userProgress.model");
-const CampaignParticipation = require("../models/campaignParticipation.model");
 const UserSegment = require("../models/userSegment.model");
 const Wallet = require("../models/wallet.model");
 const User = require("../models/user.model");
@@ -18,12 +17,13 @@ const updateCampaignQuestionCount = async (campaignId) => {
   return questionCount;
 };
 
-// ✅ YENİ: Quizi tamamla
+// ✅ YENİ: Quizi tamamla (Race Condition Fix ile)
 exports.completeQuiz = async (req) => {
   const { id: campaignId } = req.params;
   const userId = req.user.userId;
   const { totalTimeSpent } = req.body;
 
+  // 1. Kullanıcının progress'ini kontrol et
   const userProgress = await UserProgress.findOne({ userId, campaignId });
   if (!userProgress || !userProgress.joined) {
     const err = new Error("You have not joined this campaign.");
@@ -36,101 +36,236 @@ exports.completeQuiz = async (req) => {
     throw err;
   }
 
-  const participation = await CampaignParticipation.findOne({
-    userId,
-    campaignId,
-  }).lean();
-  const eligibleForReward = !!participation?.eligibleForReward;
+  // 2. UserProgress kaydından segment bilgisini al
+  const userSegment = userProgress.segment;
 
-  // Earned amount: segment ödülü (eligible ise), aksi halde 0
-  let earnedAmountToSet = 0;
-  if (eligibleForReward) {
-    const campaignDoc = await Campaign.findById(campaignId).lean();
-    const seg = campaignDoc?.segments?.find((s) => s.name === (participation?.segment || ""));
-    const segmentReward = Number(seg?.reward || 0);
-    earnedAmountToSet = Number.isFinite(segmentReward) ? segmentReward : 0;
+  if (!userSegment) {
+    const err = new Error("Segment information not found. Please join the campaign first.");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
   }
 
-  const updatedUserProgress = await UserProgress.findByIdAndUpdate(
-    userProgress._id,
-    {
-      completed: true,
-      timeSpent: totalTimeSpent,
-      completedAt: new Date(),
-      earnedAmount: earnedAmountToSet,
-      isPaymentEarned: eligibleForReward,
-    },
-    { new: true }
-  );
+  // 3. Kampanya ve segment bilgilerini getir (GÜNCEL DURUM)
+  // ÖNEMLİ: Quiz bitirirken güncel kampanya durumunu al
+  const campaign = await Campaign.findById(campaignId).lean();
+  if (!campaign) {
+    const err = new Error("Campaign not found.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
 
-  await CampaignParticipation.findOneAndUpdate(
-    { userId, campaignId },
-    {
-      timeSpent: totalTimeSpent,
-      status: "completed",
-      completedAt: new Date(),
-      eligibleForReward,
-    },
-    { upsert: true, new: true }
-  );
+  const segmentData = campaign.segments?.find((s) => s.name === userSegment);
+  if (!segmentData) {
+    const err = new Error("Segment not found for this campaign.");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
 
-  // --- ÖDÜL/ödül kaydı sadece eligible ise (örnek) ---
-  // if (eligibleForReward) { await Wallet.credit(userId, campaignId, amount); }
+  // Debug: Güncel kota durumunu logla
+  console.log(`🔍 Quiz completion check - Segment: ${userSegment}, Current: ${segmentData.currentParticipants}, Max: ${segmentData.maxParticipants}`);
 
-  // --- Referral bonus (senin kodun) aynen kalabilir ---
-  try {
-    const campaign = await Campaign.findById(campaignId).lean();
-    if (campaign) {
-      const user = await User.findById(userId, "invitedBy").lean();
-      const inviterId = user?.invitedBy;
-      if (inviterId) {
-        const userSegment = await UserSegment.findOne({
-          userId,
-          chain: "ethereum",
-        })
-          .sort({ asOf: -1 })
-          .lean();
-        const segmentClass = userSegment?.class || "D";
-        const seg = campaign.segments?.find((s) => s.name === segmentClass);
-        let rewardAmount = Number(seg?.reward || 0);
-        if (!Number.isFinite(rewardAmount)) rewardAmount = 0;
-        const referralBonus = Number((rewardAmount * 0.03).toFixed(2));
-        if (referralBonus > 0) {
-          await User.findByIdAndUpdate(
-            inviterId,
-            {
-              $inc: { referralRewards: referralBonus },
-              $push: {
-                referralHistory: {
-                  inviteeId: userId,
-                  campaignId,
-                  bonus: referralBonus,
-                  segment: segmentClass,
-                  at: new Date(),
-                },
-              },
-            },
-            { new: true }
-          );
+  // 4. MongoDB Transaction başlat (Race Condition Fix)
+  // Not: Transaction sadece replica set veya mongos üzerinde çalışır
+  // Standalone MongoDB'de transaction olmadan devam eder (findOneAndUpdate zaten atomic)
+  let session = null;
+  let useTransaction = false;
+
+  // Development'ta transaction kullanma (standalone MongoDB genellikle kullanılır)
+  // Production'da replica set varsa transaction kullanılabilir
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  if (!isDevelopment) {
+    // Production'da transaction'ı deneyelim (replica set varsa çalışır)
+    try {
+      session = await mongoose.startSession();
+      await session.startTransaction();
+      useTransaction = true;
+    } catch (transactionError) {
+      // Transaction desteklenmiyorsa (standalone MongoDB), transaction olmadan devam et
+      console.warn("⚠️ MongoDB transaction not supported. Continuing without transaction.");
+      console.warn("💡 For production, use MongoDB replica set for full transaction support.");
+      useTransaction = false;
+      if (session) {
+        try {
+          await session.endSession();
+        } catch (e) {
+          // Ignore
         }
+        session = null;
       }
     }
-  } catch (referralErr) {
-    console.error("Referral reward error:", referralErr);
+  } else {
+    // Development mode - transaction kullanma
+    console.log("ℹ️ Development mode: Using atomic operations without transaction.");
   }
 
-  return {
-    campaignId,
-    userId: userId.toString(),
-    completed: true,
-    completedAt: updatedUserProgress.completedAt,
-    totalTimeSpent,
-    rewardEligibility: eligibleForReward,
-    earnedAmount: updatedUserProgress.earnedAmount,
-    message: eligibleForReward
-      ? "Quiz completed. You are eligible for the reward."
-      : "Quiz completed. You are not eligible for the reward (reward quota full).",
-  };
+  try {
+    // 5. Atomic işlem: Kota kontrolü ve güncelleme
+    // Sadece kota dolu değilse currentParticipants'ı artır
+    // findOneAndUpdate zaten atomic bir işlem (transaction olmadan da güvenli)
+    const updateOptions = useTransaction ? { new: true, session } : { new: true };
+    
+    // ÖNEMLİ: Atomic işlem - sadece kota dolu değilse güncelle
+    // Bu query sadece currentParticipants < maxParticipants ise çalışır
+    // Eğer currentParticipants >= maxParticipants ise query başarısız olur (null döner)
+    const updatedCampaign = await Campaign.findOneAndUpdate(
+      {
+        _id: campaignId,
+        "segments.name": userSegment,
+        "segments.currentParticipants": { $lt: segmentData.maxParticipants },
+      },
+      { $inc: { "segments.$.currentParticipants": 1 } },
+      updateOptions
+    );
+
+    let wonReward = false;
+    let earnedAmountToSet = 0;
+
+    if (updatedCampaign) {
+      // Güncelleme başarılı oldu - güncellenmiş segment'i kontrol et
+      const updatedSegment = updatedCampaign.segments?.find((s) => s.name === userSegment);
+      
+      if (updatedSegment) {
+        // ÖNEMLİ: Güncelleme sonrası double-check
+        const newCurrentParticipants = updatedSegment.currentParticipants;
+        const maxParticipants = updatedSegment.maxParticipants;
+        
+        console.log(`✅ Update successful - Segment: ${userSegment}, New Current: ${newCurrentParticipants}, Max: ${maxParticipants}`);
+        
+        // Eğer güncelleme sonrası currentParticipants <= maxParticipants ise ödül verilebilir
+        // Ama eğer currentParticipants > maxParticipants ise kota aşıldı (çok nadir race condition)
+        if (newCurrentParticipants <= maxParticipants) {
+          // ✅ Kota başarıyla güncellendi ve kota limiti aşılmadı - ödül kazanıldı
+          wonReward = true;
+          earnedAmountToSet = Number(updatedSegment.reward || segmentData.reward || 0);
+          console.log(`🎉 Reward earned - Segment: ${userSegment}, Amount: ${earnedAmountToSet}`);
+        } else {
+          // ❌ Güncelleme sonrası kota aşıldı (çok nadir bir race condition)
+          // Bu durumda güncellemeyi geri al (currentParticipants'ı 1 azalt)
+          await Campaign.findOneAndUpdate(
+            {
+              _id: campaignId,
+              "segments.name": userSegment,
+            },
+            { $inc: { "segments.$.currentParticipants": -1 } },
+            { new: true }
+          );
+          wonReward = false;
+          earnedAmountToSet = 0;
+          console.log(`⚠️ Quota exceeded after update for segment ${userSegment} (${newCurrentParticipants} > ${maxParticipants}). Reverting update.`);
+        }
+      } else {
+        // Segment bulunamadı (çok nadir)
+        wonReward = false;
+        earnedAmountToSet = 0;
+        console.error(`⚠️ Updated segment not found for ${userSegment}`);
+      }
+    } else {
+      // ❌ Güncelleme başarısız - kota zaten dolu veya başka bir kullanıcı kotayı doldurmuş
+      // findOneAndUpdate sadece currentParticipants < maxParticipants ise çalışır
+      // Eğer null dönerse, demek ki currentParticipants >= maxParticipants (kota dolu)
+      wonReward = false;
+      earnedAmountToSet = 0;
+      console.log(`❌ Quota full for segment ${userSegment} (Current: ${segmentData.currentParticipants} >= Max: ${segmentData.maxParticipants}). User cannot earn reward.`);
+    }
+
+    // 6. UserProgress güncelle (tüm bilgiler tek yerde)
+    const updatedUserProgress = await UserProgress.findByIdAndUpdate(
+      userProgress._id,
+      {
+        completed: true,
+        timeSpent: totalTimeSpent,
+        completedAt: new Date(),
+        earnedAmount: earnedAmountToSet,
+        isPaymentEarned: wonReward,
+        status: "completed",
+        eligibleForReward: wonReward, // Güncel kota durumuna göre
+      },
+      updateOptions
+    );
+
+    // 8. Referral bonus (sadece ödül kazanıldıysa)
+    if (wonReward) {
+      try {
+        const user = await User.findById(userId, "invitedBy").lean();
+        const inviterId = user?.invitedBy;
+        if (inviterId) {
+          const userSegmentDoc = await UserSegment.findOne({
+            userId,
+            chain: "ethereum",
+          })
+            .sort({ asOf: -1 })
+            .lean();
+          const segmentClass = userSegmentDoc?.class || "D";
+          const seg = campaign.segments?.find((s) => s.name === segmentClass);
+          let rewardAmount = Number(seg?.reward || 0);
+          if (!Number.isFinite(rewardAmount)) rewardAmount = 0;
+          const referralBonus = Number((rewardAmount * 0.03).toFixed(2));
+          if (referralBonus > 0) {
+            await User.findByIdAndUpdate(
+              inviterId,
+              {
+                $inc: { referralRewards: referralBonus },
+                $push: {
+                  referralHistory: {
+                    inviteeId: userId,
+                    campaignId,
+                    bonus: referralBonus,
+                    segment: segmentClass,
+                    at: new Date(),
+                  },
+                },
+              },
+              updateOptions
+            );
+          }
+        }
+      } catch (referralErr) {
+        console.error("Referral reward error:", referralErr);
+        // Referral hatası transaction'ı bozmamalı
+      }
+    }
+
+    // 9. Transaction'ı commit et (eğer kullanılıyorsa)
+    if (useTransaction && session) {
+      await session.commitTransaction();
+    }
+
+    // 10. Response döndür
+    return {
+      campaignId,
+      userId: userId.toString(),
+      completed: true,
+      wonReward: wonReward, // ⚠️ ÖNEMLİ: Frontend için
+      reward: wonReward ? earnedAmountToSet : null,
+      completedAt: updatedUserProgress.completedAt,
+      totalTimeSpent,
+      rewardEligibility: wonReward, // Backward compatibility
+      earnedAmount: earnedAmountToSet,
+      message: wonReward
+        ? "Quiz completed. You are eligible for the reward."
+        : "Quiz completed but quota was filled by another user. You are not eligible for the reward.",
+    };
+  } catch (error) {
+    // Transaction'ı rollback et (eğer kullanılıyorsa)
+    if (useTransaction && session) {
+      try {
+        await session.abortTransaction();
+      } catch (abortErr) {
+        console.error("Error aborting transaction:", abortErr);
+      }
+    }
+    throw error;
+  } finally {
+    // Session'ı kapat (eğer oluşturulduysa)
+    if (session) {
+      try {
+        await session.endSession();
+      } catch (endErr) {
+        console.error("Error ending session:", endErr);
+      }
+    }
+  }
 };
 
 // ✅ YENİ: Kullanıcının kampanya ilerlemesini getir
@@ -180,10 +315,7 @@ exports.joinCampaign = async (req) => {
     throw err;
   }
 
-  const [existingProgress, existingParticipation] = await Promise.all([
-    UserProgress.findOne({ userId, campaignId }),
-    CampaignParticipation.findOne({ userId, campaignId }),
-  ]);
+  const existingProgress = await UserProgress.findOne({ userId, campaignId });
 
   if (existingProgress && existingProgress.completed) {
     const err = new Error("You have already completed this campaign.");
@@ -206,8 +338,8 @@ exports.joinCampaign = async (req) => {
 
   // ---- ÖDÜL UYGUNLUĞU (maxParticipants) ----
   let eligibleForReward;
-  if (existingParticipation) {
-    eligibleForReward = !!existingParticipation.eligibleForReward;
+  if (existingProgress && existingProgress.eligibleForReward !== undefined) {
+    eligibleForReward = !!existingProgress.eligibleForReward;
   } else if (role === "admin") {
     eligibleForReward = true;
   } else {
@@ -217,27 +349,15 @@ exports.joinCampaign = async (req) => {
     eligibleForReward = !isRewardFullOrOver;
   }
 
-  // ---- UserProgress ----
-  if (existingProgress) {
-    existingProgress.joined = true;
-    existingProgress.startedAt = new Date();
-    await existingProgress.save();
-  } else {
+  // ---- UserProgress oluştur/güncelle (SADECE İLK KATILIMDA) ----
+  if (!existingProgress) {
     await UserProgress.create({
       userId,
       campaignId,
       joined: true,
       startedAt: new Date(),
-    });
-  }
-
-  // ---- Participation + sayaçlar (SADECE İLK KATILIMDA) ----
-  if (!existingParticipation) {
-    await CampaignParticipation.create({
-      campaignId,
-      userId,
-      segment: userSegmentClass,
       joinedAt: new Date(),
+      segment: userSegmentClass,
       eligibleForReward,
       status: "joined",
     });
@@ -246,6 +366,22 @@ exports.joinCampaign = async (req) => {
     if (eligibleForReward) segment.currentParticipants += 1;
 
     await campaign.save();
+  } else {
+    // Mevcut progress'i güncelle
+    existingProgress.joined = true;
+    if (!existingProgress.startedAt) {
+      existingProgress.startedAt = new Date();
+    }
+    if (!existingProgress.joinedAt) {
+      existingProgress.joinedAt = new Date();
+    }
+    if (!existingProgress.segment) {
+      existingProgress.segment = userSegmentClass;
+    }
+    if (existingProgress.eligibleForReward === undefined) {
+      existingProgress.eligibleForReward = eligibleForReward;
+    }
+    await existingProgress.save();
   }
 
   return {
@@ -289,18 +425,10 @@ exports.updateProgress = async (req) => {
       completed: newCompleted,
       timeSpent: userProgress.timeSpent + timeSpent,
       completedAt: newCompleted ? new Date() : null,
+      score: newCompleted ? 100 : (userProgress.score || 0),
+      status: newCompleted ? "completed" : "active",
     },
     { new: true }
-  );
-
-  await CampaignParticipation.findOneAndUpdate(
-    { userId, campaignId },
-    {
-      score: newCompleted ? 100 : 0,
-      timeSpent: updatedUserProgress.timeSpent,
-      status: newCompleted ? "completed" : "active",
-      completedAt: newCompleted ? new Date() : null,
-    }
   );
 
   return {
