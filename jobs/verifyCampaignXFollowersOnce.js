@@ -110,8 +110,8 @@ async function verifyCampaignXFollowersOnce(campaignId, { dryRun = false } = {})
 
     try {
       const apiRes = await twitterApi.checkFollowRelationship({
-        sourceUserName: sourceHandle,
-        targetUserName: targetHandle,
+        source_user_name: sourceHandle,
+        target_user_name: targetHandle,
       });
 
       const following = !!apiRes?.data?.following;

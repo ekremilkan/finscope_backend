@@ -9,7 +9,7 @@ function requireEnv(name) {
   return v;
 }
 
-async function checkFollowRelationship({ sourceUserName, targetUserName }) {
+async function checkFollowRelationship({ source_user_name, target_user_name }) {
   const apiKey = requireEnv("TWITTERAPI_IO_KEY");
 
   const res = await axios.get(
@@ -17,10 +17,8 @@ async function checkFollowRelationship({ sourceUserName, targetUserName }) {
     {
       headers: { "X-API-Key": apiKey },
       params: {
-        // twitterapi.io dokümanına göre param isimleri:
-        // bazı örneklerde sourceUserName/targetUserName geçiyor — sendikasyonu bu şekilde yapıyoruz
-        sourceUserName,
-        targetUserName,
+        "source_user_name": source_user_name,
+        "target_user_name": target_user_name,
       },
       timeout: 20000,
     }
