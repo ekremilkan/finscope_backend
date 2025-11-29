@@ -487,3 +487,145 @@ exports.getUserJoinedCampaigns = async (req) => {
 
   return result;
 };
+
+exports.saveOrUpdateTwitterUsername = async (req) => {
+  const { twitterUsername } = req.body;
+  const { userId } = req.user;
+
+  if (!userId) {
+    const err = new Error("userId zorunludur.");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
+  if (!twitterUsername) {
+    const err = new Error("Twitter username boş olamaz");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
+  const cleanUsername = String(twitterUsername)
+    .replace(/^@+/, "")
+    .trim()
+    .toLowerCase();
+
+  if (!cleanUsername) {
+    const err = new Error("Twitter username geçersiz.");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: { "social.twitter.username": cleanUsername } },
+    { new: true, runValidators: true }
+  ).select("social.twitter username email name"); // istersen azalt
+
+  if (!user) {
+    const err = new Error("User not found.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
+  return {
+    twitterUsername: user?.social?.twitter?.username ?? null,
+  };
+};
+
+exports.getTwitterUsername = async (req) => {
+  // en sağlıklısı auth'tan almak; ama senin eski davranışı da bozmayalım
+  const userId = req.user?.userId || req.params?.userId || req.body?.userId;
+
+  if (!userId) {
+    const err = new Error("userId zorunludur.");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
+  const user = await User.findById(userId)
+    .select("social.twitter.username")
+    .lean();
+
+  if (!user) {
+    const err = new Error("User not found.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
+  return { twitterUsername: user?.social?.twitter?.username ?? null };
+};
+
+const normalizeTelegram = (v) =>
+  String(v || "")
+    .replace(/^@+/, "")
+    .trim()
+    .toLowerCase();
+
+exports.saveOrUpdateTelegramUsername = async (req) => {
+  const { telegramUsername } = req.body;
+  const { userId } = req.user;
+
+  if (!userId) {
+    const err = new Error("userId zorunludur.");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
+  if (!telegramUsername) {
+    const err = new Error("Telegram username boş olamaz");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
+  const cleanUsername = normalizeTelegram(telegramUsername);
+
+  if (!cleanUsername) {
+    const err = new Error("Telegram username geçersiz.");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
+  // Telegram username karakter kuralı (basit, güvenli)
+  // 5-32 char, a-z0-9_ (Telegram genelde 5-32 ve harf/rakam/_)
+  if (!/^[a-z0-9_]{5,32}$/.test(cleanUsername)) {
+    const err = new Error("Telegram username formatı geçersiz.");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: { "social.telegram.username": cleanUsername } },
+    { new: true, runValidators: true }
+  ).select("social.telegram.username");
+
+  if (!user) {
+    const err = new Error("User not found.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
+  return { telegramUsername: user?.social?.telegram?.username ?? null };
+};
+
+exports.getTelegramUsername = async (req) => {
+  const userId = req.user?.userId || req.params?.userId || req.body?.userId;
+
+  if (!userId) {
+    const err = new Error("userId zorunludur.");
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
+  const user = await User.findById(userId)
+    .select("social.telegram.username")
+    .lean();
+
+  if (!user) {
+    const err = new Error("User not found.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
+  return { telegramUsername: user?.social?.telegram?.username ?? null };
+};

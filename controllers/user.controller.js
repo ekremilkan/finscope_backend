@@ -114,6 +114,7 @@ exports.logout = async (req, res) => {
     });
   }
 };
+
 exports.getProfile = async (req, res) => {
   // Middleware token'ı doğrulayıp kullanıcıyı req.user'a eklediği için,
   // burada veritabanına tekrar gitmemize gerek yok.
@@ -333,6 +334,91 @@ exports.getReferralInfo = async (req, res) => {
       ...baseResponse,
       data,
       message: "Referral information retrieved successfully.",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
+exports.saveOrUpdateTwitterUsername = async (req, res) => {
+  try {
+    const data = await userService.user.saveOrUpdateTwitterUsername(req);
+
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Twitter username saved successfully",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
+exports.getTwitterUsername = async (req, res) => {
+  try {
+    // İstersen burada req.user varsa onu kullanacak şekilde de servisi güncelleyebilirsin.
+    const data = await userService.user.getTwitterUsername(req);
+
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Twitter username fetched successfully",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
+exports.saveOrUpdateTelegramUsername = async (req, res) => {
+  try {
+    const data = await userService.user.saveOrUpdateTelegramUsername(req);
+
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Telegram username saved successfully",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};
+
+exports.getTelegramUsername = async (req, res) => {
+  try {
+    const data = await userService.user.getTelegramUsername(req);
+
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Telegram username fetched successfully",
       code: StatusCodes.OK,
     });
   } catch (error) {

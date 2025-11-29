@@ -5,15 +5,28 @@ const jwt = require("jsonwebtoken");
 const TelegramSchema = new mongoose.Schema(
   {
     id: { type: Number, index: true }, // Telegram user id
-    username: String,
-    firstName: String,
-    lastName: String,
-    languageCode: String,
-    isPremium: Boolean,
-    photoUrl: String,
-    linkedAt: Date,
+    username: { type: String, trim: true, lowercase: true, default: null },
+    firstName: { type: String, default: null },
+    lastName: { type: String, default: null },
+    languageCode: { type: String, default: null },
+    isPremium: { type: Boolean, default: false },
+    photoUrl: { type: String, default: null },
+    linkedAt: { type: Date, default: null },
   },
   { _id: false }
+);
+
+// ✅ Sadece "kullanıcının beyan ettiği" sosyal username’ler burada.
+const SocialSchema = new mongoose.Schema(
+  {
+    twitter: {
+      username: { type: String, trim: true, lowercase: true, default: null, maxlength: 15 },
+    },
+    telegram: {
+      username: { type: String, trim: true, lowercase: true, default: null, maxlength: 32 },
+    },
+  },
+  { _id: false, minimize: true }
 );
 
 const userSchema = new mongoose.Schema(
@@ -34,58 +47,38 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
     },
-    password: {
-      type: String,
-      required: true,
-    },
+    password: { type: String, required: true },
+
     role: {
       type: String,
       enum: ["customer", "user", "admin"],
       default: "user",
       required: true,
     },
-    isVerified: {
-      type: Boolean,
-      default: false,
-    },
-    wallets: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Wallet", // Wallet modeline referans
-      },
-    ],
-    verificationCode: {
-      type: String,
-      default: null,
-    },
-    verificationCodeExpiresAt: {
-      type: Date,
-      default: null,
-    },
-    // Sadece uzun ömürlü refresh token veritabanında saklanır.
-    refreshToken: {
-      type: String,
-      default: null,
-    },
-    tokenCreatedAt: {
-      type: Date,
-      default: null,
-    },
-    passwordChangedAt: {
-      type: Date,
-      default: Date.now,
-    },
-    loginAttempts: {
-      type: Number,
-      default: 0,
-      select: false, // Bu alanı normal sorgularda getirme
-    },
-    lockUntil: {
-      type: Date,
-      select: false, // Bu alanı normal sorgularda getirme
-    },
+
+    isVerified: { type: Boolean, default: false },
+
+    wallets: [{ type: mongoose.Schema.Types.ObjectId, ref: "Wallet" }],
+
+    verificationCode: { type: String, default: null },
+    verificationCodeExpiresAt: { type: Date, default: null },
+
+    refreshToken: { type: String, default: null },
+    tokenCreatedAt: { type: Date, default: null },
+
+    passwordChangedAt: { type: Date, default: Date.now },
+
+    loginAttempts: { type: Number, default: 0, select: false },
+    lockUntil: { type: Date, select: false },
+
     signupSource: { type: String, enum: ["web", "telegram"], default: "web" },
+
+    // Telegram login / link bilgisi (mevcut)
     telegram: TelegramSchema,
+
+    // ✅ username'ler burada
+    social: { type: SocialSchema, default: () => ({}) },
+
     referralCode: {
       type: String,
       unique: true,
@@ -95,29 +88,13 @@ const userSchema = new mongoose.Schema(
       maxlength: 12,
       index: true,
     },
-    invitedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-    invitedAt: {
-      type: Date,
-      default: null,
-    },
-    invitees: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
 
-    // toplam referral kazancı
-    referralRewards: {
-      type: Number,
-      default: 0,
-    },
+    invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    invitedAt: { type: Date, default: null },
+    invitees: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
-    // 🔥 eklendi: referral bonus geçmişi
+    referralRewards: { type: Number, default: 0 },
+
     referralHistory: [
       {
         inviteeId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
@@ -129,13 +106,12 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    // Hassas verileri API yanıtlarından otomatik olarak temizle
     toJSON: {
       transform: function (doc, ret) {
         delete ret.password;
         delete ret.verificationCode;
         delete ret.verificationCodeExpiresAt;
-        delete ret.refreshToken; // Refresh token'ı da yanıtlarda gönderme
+        delete ret.refreshToken;
         delete ret.loginAttempts;
         delete ret.lockUntil;
         return ret;
@@ -144,7 +120,7 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-//refferalCode için üretim (8 karakter uzunluğunda, userid'nin son 8 karakteri)
+// referralCode üretim
 userSchema.pre("save", function (next) {
   if (this.isNew && !this.referralCode) {
     const userIdStr = this._id.toString();
@@ -153,7 +129,7 @@ userSchema.pre("save", function (next) {
   next();
 });
 
-// Şifre her değiştiğinde hash'leyen ve tarihi güncelleyen middleware
+// Şifre hash
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
 
@@ -163,63 +139,38 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
-// Access token oluşturma metodu
+// Access token
 userSchema.methods.generateAccessToken = function () {
-  const payload = {
-    _id: this._id,
-    email: this.email,
-    name: this.name,
-    role: this.role,
-  };
-
-  // Not: Access token'lar kısa ömürlüdür ve veritabanına kaydedilmez.
-  const token = jwt.sign(payload, process.env.SECRETKEY, {
-    expiresIn: process.env.EXPIRESIN,
-  });
-
-  return token;
+  const payload = { _id: this._id, email: this.email, name: this.name, role: this.role };
+  return jwt.sign(payload, process.env.SECRETKEY, { expiresIn: process.env.EXPIRESIN });
 };
 
-// Şifre karşılaştırma metodu
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Rol kontrol metotları
 userSchema.methods.isAdmin = function () {
   return this.role === "admin";
 };
 
-// Sanal (Virtual) alan: Hesabın kilitli olup olmadığını anlık hesaplar
 userSchema.virtual("isLocked").get(function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 });
 
-// Başarısız giriş denemelerini yöneten metot
 userSchema.methods.incLoginAttempts = function () {
   if (this.lockUntil && this.lockUntil < Date.now()) {
-    return this.updateOne({
-      $unset: { lockUntil: 1 },
-      $set: { loginAttempts: 1 },
-    });
+    return this.updateOne({ $unset: { lockUntil: 1 }, $set: { loginAttempts: 1 } });
   }
 
   const updates = { $inc: { loginAttempts: 1 } };
-
   if (this.loginAttempts + 1 >= 5 && !this.isLocked) {
-    updates.$set = { lockUntil: Date.now() + 30 * 60 * 1000 }; // 30 dakika
+    updates.$set = { lockUntil: Date.now() + 30 * 60 * 1000 };
   }
-
   return this.updateOne(updates);
 };
 
-// Başarılı giriş sonrası denemeleri sıfırlayan metot
 userSchema.methods.resetLoginAttempts = function () {
-  return this.updateOne({
-    $set: { loginAttempts: 0 },
-    $unset: { lockUntil: 1 },
-  });
+  return this.updateOne({ $set: { loginAttempts: 0 }, $unset: { lockUntil: 1 } });
 };
 
-const User = mongoose.model("User", userSchema);
-module.exports = User;
+module.exports = mongoose.model("User", userSchema);

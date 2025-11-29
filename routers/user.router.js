@@ -101,4 +101,28 @@ router.get(
   controller.referralController.getReferralInfo
 );
 
+router.post(
+  "/save-twitter-username",
+  middlewares.authMiddleware,
+  controller.userController.saveOrUpdateTwitterUsername
+);
+
+router.get(
+  "/get-twitter-username",
+  middlewares.authMiddleware,
+  controller.userController.getTwitterUsername
+);
+
+router.post(
+  "/save-telegram-username",
+  middlewares.authMiddleware,
+  controller.userController.saveOrUpdateTelegramUsername
+);
+
+router.get(
+  "/get-telegram-username",
+  middlewares.authMiddleware,
+  controller.userController.getTelegramUsername
+);
+
 module.exports = { user: router };

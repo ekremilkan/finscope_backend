@@ -13,8 +13,14 @@ const telegramService = require("./services/telegram.service");
 const router = require("./routers/index");
 const ROUTER_PREFIX = require("./consts/router.prefix.consts");
 
+// ✅ CRON import
+const {
+  startTwitterFollowVerificationCron,
+} = require("./cron/twitterFollowVerification.cron");
+
 const app = express();
 telegramService.TelegramService.initTelegram(app);
+
 // NODE_ENV kontrolü
 const isDevelopment = process.env.NODE_ENV === "development";
 console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
@@ -64,9 +70,6 @@ app.use(
 // Global rate limiter (development'ta devre dışı)
 app.use(middlewares.rateLimiter.generalLimiter);
 
-// Auth middleware
-// app.use(middlewares.authMiddleware);
-
 app.get("/", (req, res) => res.send("API Çalışıyor..."));
 
 // Router'ları ekle
@@ -78,7 +81,7 @@ app.use(`${config.app.prefix}/upload`, router.uploadRouter);
 app.use(`${config.app.prefix}/segments`, router.segmentsRouter);
 app.use(`${config.app.prefix}/user-campaigns`, router.userCampaignRouter);
 
-// DEĞİŞTİ - config.db.uri ve config.app.port olarak güncellendi
+// ✅ DB bağlan -> server ayağa kalk -> cron başlat
 db.mongooseConnection.connectMongoDB().then(() => {
   app.listen(config.app.port, () => {
     console.log(`✅ Server ${config.app.port} portunda çalışıyor`);
@@ -93,5 +96,9 @@ db.mongooseConnection.connectMongoDB().then(() => {
     console.log(`🛡️  Helmet güvenlik headers: Aktif`);
     console.log(`📊 Kampanya ve Sorular API'leri aktif`);
     console.log(`📁 File upload servisi aktif`);
+
+    // ✅ CRON start
+    startTwitterFollowVerificationCron();
+    console.log("⏱️  Twitter follow verification cron started");
   });
 });
