@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 
 const optionSchema = new mongoose.Schema({
   text: {
-    type: String,
-    required: true,
+    tr: { type: String, required: true },
+    en: { type: String, required: true }
   },
   isTrue: {
     type: Boolean,
@@ -13,9 +13,8 @@ const optionSchema = new mongoose.Schema({
 
 const questionSchema = new mongoose.Schema({
   questionText: {
-    type: String,
-    required: true,
-    maxlength: 300,
+    tr: { type: String, required: true, maxlength: 300 },
+    en: { type: String, required: true, maxlength: 300 }
   },
   options: {
     type: [optionSchema],

@@ -25,7 +25,7 @@ exports.create = async (req, res) => {
 
 exports.getAll = async (req, res) => {
   try {
-    const data = await questionService.getAll();
+    const data = await questionService.getAll(req);
     res.status(StatusCodes.OK).json({
       ...baseResponse,
       data,

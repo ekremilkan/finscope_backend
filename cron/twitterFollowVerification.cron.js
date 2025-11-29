@@ -10,7 +10,7 @@ const { verifyCampaignXFollowersOnce } = require("../jobs/verifyCampaignXFollowe
  * - aynı campaign için daha önce koşmadıysa 1 kere doğrular
  */
 function startTwitterFollowVerificationCron() {
-  cron.schedule("*/15 * * * *", async () => {
+  cron.schedule("*/1 * * * *", async () => {
     const now = new Date();
     console.log("[CRON] X follow verification started at", now.toISOString());
 

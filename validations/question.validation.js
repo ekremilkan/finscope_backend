@@ -1,13 +1,36 @@
 const Joi = require('joi');
 
-// Seçenek şeması
-const optionSchema = Joi.object({
-  text: Joi.string()
+// ========================================
+// YENİ: Localized String Schema (Çoklu Dil Desteği)
+// ========================================
+const localizedStringSchema = Joi.object({
+  tr: Joi.string()
     .required()
     .messages({
-      'string.empty': 'Seçenek metni boş olamaz',
-      'any.required': 'Seçenek metni zorunludur'
+      'any.required': 'Turkish translation is required',
+      'string.empty': 'Turkish text cannot be empty'
     }),
+  en: Joi.string()
+    .required()
+    .messages({
+      'any.required': 'English translation is required',
+      'string.empty': 'English text cannot be empty'
+    })
+})
+  .custom((value, helpers) => {
+    // Her iki dil de dolu olmalı
+    if (!value.tr || !value.en) {
+      return helpers.error('any.invalid');
+    }
+    return value;
+  })
+  .messages({
+    'any.invalid': 'Both Turkish and English translations are required'
+  });
+
+// Seçenek şeması
+const optionSchema = Joi.object({
+  text: localizedStringSchema.required(),
   isTrue: Joi.boolean()
     .default(false)
     .messages({
@@ -17,13 +40,20 @@ const optionSchema = Joi.object({
 
 // Soru oluşturma validation şeması
 const createQuestionSchema = Joi.object({
-  questionText: Joi.string()
-    .max(300)
+  questionText: localizedStringSchema
+    .custom((value, helpers) => {
+      // Maxlength kontrolü
+      if (value.tr && value.tr.length > 300) {
+        return helpers.error('string.max', { limit: 300 });
+      }
+      if (value.en && value.en.length > 300) {
+        return helpers.error('string.max', { limit: 300 });
+      }
+      return value;
+    })
     .required()
     .messages({
-      'string.empty': 'Soru metni boş olamaz',
-      'string.max': 'Soru metni en fazla 300 karakter olmalıdır',
-      'any.required': 'Soru metni zorunludur'
+      'string.max': 'Soru metni en fazla 300 karakter olmalıdır'
     }),
   options: Joi.array()
     .items(optionSchema)
@@ -51,10 +81,19 @@ const createQuestionSchema = Joi.object({
 
 // Soru güncelleme validation şeması
 const updateQuestionSchema = Joi.object({
-  questionText: Joi.string()
-    .max(300)
+  questionText: localizedStringSchema
+    .custom((value, helpers) => {
+      // Maxlength kontrolü
+      if (value && value.tr && value.tr.length > 300) {
+        return helpers.error('string.max', { limit: 300 });
+      }
+      if (value && value.en && value.en.length > 300) {
+        return helpers.error('string.max', { limit: 300 });
+      }
+      return value;
+    })
+    .optional()
     .messages({
-      'string.empty': 'Soru metni boş olamaz',
       'string.max': 'Soru metni en fazla 300 karakter olmalıdır'
     }),
   options: Joi.array()

@@ -1,6 +1,34 @@
 const Joi = require('joi');
 
 // ========================================
+// YENİ: Localized String Schema (Çoklu Dil Desteği)
+// ========================================
+const localizedStringSchema = Joi.object({
+  tr: Joi.string()
+    .required()
+    .messages({
+      'any.required': 'Turkish translation is required',
+      'string.empty': 'Turkish text cannot be empty'
+    }),
+  en: Joi.string()
+    .required()
+    .messages({
+      'any.required': 'English translation is required',
+      'string.empty': 'English text cannot be empty'
+    })
+})
+  .custom((value, helpers) => {
+    // Her iki dil de dolu olmalı
+    if (!value.tr || !value.en) {
+      return helpers.error('any.invalid');
+    }
+    return value;
+  })
+  .messages({
+    'any.invalid': 'Both Turkish and English translations are required'
+  });
+
+// ========================================
 // YENİ: Filter Schema (Segment Filtreleri)
 // ========================================
 const filterSchema = Joi.object({
@@ -115,12 +143,14 @@ const segmentSchema = Joi.object({
       'number.min': 'Mevcut katılımcı 0 veya daha büyük olmalıdır'
     }),
   
-  description: Joi.string()
-    .max(500)
-    .allow('', null)
-    .messages({
+  description: Joi.object({
+    tr: Joi.string().max(500).allow('', null).messages({
       'string.max': 'Açıklama en fazla 500 karakter olabilir'
     }),
+    en: Joi.string().max(500).allow('', null).messages({
+      'string.max': 'Açıklama en fazla 500 karakter olabilir'
+    })
+  }).optional(),
   
   filters: Joi.array()
     .items(filterSchema)
@@ -133,44 +163,64 @@ const segmentSchema = Joi.object({
 });
 
 // ========================================
+// YENİ: Content Item Schema (Çoklu Dil Desteği)
+// ========================================
+const contentItemSchema = Joi.object({
+  itemTitle: localizedStringSchema.required(),
+  itemDescription: localizedStringSchema.required(),
+  itemImage: Joi.string().uri().allow('', null).optional().messages({
+    'string.uri': 'Geçerli bir item image URL giriniz'
+  }),
+  itemVideo: Joi.string().uri().allow('', null).optional().messages({
+    'string.uri': 'Geçerli bir item video URL giriniz'
+  }),
+  itemIndex: Joi.number().min(0).default(1)
+});
+
+// ========================================
 // Kampanya Oluşturma Validation Şeması
 // ========================================
 const createCampaignSchema = Joi.object({
-  title: Joi.string()
-    .max(100)
-    .required()
-    .messages({
-      'string.empty': 'Kampanya başlığı boş olamaz',
-      'string.max': 'Kampanya başlığı en fazla 100 karakter olmalıdır',
-      'any.required': 'Kampanya başlığı zorunludur'
-    }),
-  
-  description: Joi.string()
-    .max(500)
-    .required()
-    .messages({
-      'string.empty': 'Kampanya açıklaması boş olamaz',
-      'string.max': 'Kampanya açıklaması en fazla 500 karakter olmalıdır',
-      'any.required': 'Kampanya açıklaması zorunludur'
-    }),
-  
-  content: Joi.array().items(
-    Joi.object({
-      itemImage: Joi.string().uri().allow('', null).messages({
-        'string.uri': 'Geçerli bir item image URL giriniz'
-      }),
-      itemVideo: Joi.string().uri().allow('', null).messages({
-        'string.uri': 'Geçerli bir item video URL giriniz'
-      }),
-      itemTitle: Joi.string().max(500).allow('', null).messages({
-        'string.max': 'Item başlığı en fazla 500 karakter olmalıdır'
-      }),
-      itemDescription: Joi.string().max(500).allow('', null).messages({
-        'string.max': 'Item açıklaması en fazla 500 karakter olmalıdır'
-      }),
-      itemIndex: Joi.number().min(0).default(0)
+  title: localizedStringSchema
+    .custom((value, helpers) => {
+      // Maxlength kontrolü
+      if (value.tr && value.tr.length > 100) {
+        return helpers.error('string.max', { limit: 100 });
+      }
+      if (value.en && value.en.length > 100) {
+        return helpers.error('string.max', { limit: 100 });
+      }
+      return value;
     })
-  ).default([]),
+    .required()
+    .messages({
+      'string.max': 'Kampanya başlığı en fazla 100 karakter olmalıdır'
+    }),
+  
+  description: localizedStringSchema
+    .custom((value, helpers) => {
+      // Maxlength kontrolü
+      if (value.tr && value.tr.length > 500) {
+        return helpers.error('string.max', { limit: 500 });
+      }
+      if (value.en && value.en.length > 500) {
+        return helpers.error('string.max', { limit: 500 });
+      }
+      return value;
+    })
+    .required()
+    .messages({
+      'string.max': 'Kampanya açıklaması en fazla 500 karakter olmalıdır'
+    }),
+  
+  content: Joi.array()
+    .items(contentItemSchema)
+    .min(1)
+    .required()
+    .messages({
+      'array.min': 'En az bir içerik öğesi gereklidir',
+      'any.required': 'Content zorunludur'
+    }),
   
   // ========================================
   // YENİ: Segments Array (ESKİ rewards, maxParticipants YERİNE)

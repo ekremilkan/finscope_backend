@@ -6,6 +6,7 @@ const User = require("../models/user.model");
 const UserCampaign = require("../models/userCampaign.model");
 const { StatusCodes } = require("http-status-codes");
 const mongoose = require("mongoose");
+const { transformCampaignByLanguage, detectLanguage } = require("../utils/i18n");
 
 // Kampanya soru sayısını güncelle
 const updateCampaignQuestionCount = async (campaignId) => {
@@ -438,7 +439,7 @@ exports.updateProgress = async (req) => {
   };
 };
 
-// ✅ GÜNCELLENDİ: Kampanya oluştur (segment-based)
+// ✅ GÜNCELLENDİ: Kampanya oluştur (segment-based + çoklu dil)
 exports.create = async (req) => {
   const {
     title,
@@ -458,6 +459,19 @@ exports.create = async (req) => {
   const createdUserId = req.user.userId;
   const role = req.user.role;
 
+  // ✅ Çoklu dil yapısını doğrula
+  if (!title || !title.tr || !title.en) {
+    const err = new Error('Title must have both tr and en translations');
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+  
+  if (!description || !description.tr || !description.en) {
+    const err = new Error('Description must have both tr and en translations');
+    err.statusCode = StatusCodes.BAD_REQUEST;
+    throw err;
+  }
+
   // Segment validation
   if (!segments || segments.length === 0) {
     const err = new Error("Kampanya en az bir segment içermelidir");
@@ -469,12 +483,39 @@ exports.create = async (req) => {
   const processedSegments = segments.map((segment) => ({
     ...segment,
     currentParticipants: segment.currentParticipants || 0,
+    // Segment description'ı çoklu dil formatına çevir (eğer varsa)
+    description: segment.description && typeof segment.description === 'object' 
+      ? segment.description 
+      : segment.description 
+        ? { tr: segment.description, en: segment.description }
+        : undefined
+  }));
+
+  // Content array'ini çoklu dil formatına çevir
+  const processedContent = (content || []).map(item => ({
+    itemTitle: {
+      tr: item.itemTitle?.tr || item.itemTitle || '',
+      en: item.itemTitle?.en || item.itemTitle || ''
+    },
+    itemDescription: {
+      tr: item.itemDescription?.tr || item.itemDescription || '',
+      en: item.itemDescription?.en || item.itemDescription || ''
+    },
+    itemImage: item.itemImage || '',
+    itemVideo: item.itemVideo || '',
+    itemIndex: item.itemIndex || 1
   }));
 
   const campaign = new Campaign({
-    title,
-    description,
-    content,
+    title: {
+      tr: title.tr,
+      en: title.en
+    },
+    description: {
+      tr: description.tr,
+      en: description.en
+    },
+    content: processedContent,
     segments: processedSegments, // ✅ YENİ: Segments array
     startDate,
     endDate,
@@ -493,10 +534,12 @@ exports.create = async (req) => {
   return campaign;
 };
 
-// ✅ YENİ: Tüm kampanyaları getir (rol bazlı filtreleme + kullanıcı segment bilgisi)
+// ✅ YENİ: Tüm kampanyaları getir (rol bazlı filtreleme + kullanıcı segment bilgisi + çoklu dil)
 exports.getAll = async (req) => {
   const isAdmin = req.user?.role === "admin";
   const userId = req.user.userId;
+  // Dil algılama: query param > user preference > Accept-Language header > default
+  const lang = detectLanguage(req);
 
   let matchFilter = {};
   if (!isAdmin) {
@@ -566,73 +609,125 @@ exports.getAll = async (req) => {
     }
   ]);
 
-  return campaignsWithUserSegment;
+  // Her kampanyayı istenen dile göre transform et
+  return campaignsWithUserSegment.map(campaign => transformCampaignByLanguage(campaign, lang, 'tr'));
 };
 
-// ✅ EKLENDİ: Kampanyayı ID'ye göre getir
+// ✅ EKLENDİ: Kampanyayı ID'ye göre getir (çoklu dil)
 exports.getById = async (req) => {
   const { id } = req.params;
+  // Dil algılama: query param > user preference > Accept-Language header > default
+  const lang = detectLanguage(req);
+  
   const campaign = await Campaign.findById(id);
   if (!campaign) {
     const err = new Error("Campaign not found.");
     err.statusCode = StatusCodes.NOT_FOUND;
     throw err;
   }
-  return campaign;
+  
+  return transformCampaignByLanguage(campaign, lang, 'tr');
 };
 
-// ✅ EKLENDİ: Kampanyayı güncelle (admin veya sahip)
-// ✅ GÜNCELLENDİ: Update campaign (segment-based)
+// ✅ EKLENDİ: Kampanyayı güncelle (admin veya sahip + çoklu dil)
+// ✅ GÜNCELLENDİ: Update campaign (segment-based + çoklu dil)
 exports.update = async (req) => {
   const { id } = req.params;
   const userId = req.user.userId;
   const role = req.user.role;
+  const { title, description, content, ...otherFields } = req.body;
 
   // Müşteri, istemci tarafından isAdminAccept'i değiştiremez
-  if (role !== "admin" && typeof req.body.isAdminAccept !== "undefined") {
-    delete req.body.isAdminAccept;
+  if (role !== "admin" && typeof otherFields.isAdminAccept !== "undefined") {
+    delete otherFields.isAdminAccept;
   }
 
   // createdUserId değiştirilemez
-  if (typeof req.body.createdUserId !== "undefined") {
-    delete req.body.createdUserId;
+  if (typeof otherFields.createdUserId !== "undefined") {
+    delete otherFields.createdUserId;
   }
 
-  // ✅ YENİ: Segment currentParticipants korunmalı (istemci tarafından değiştirilemez)
-  if (req.body.segments && Array.isArray(req.body.segments)) {
-    const existingCampaign = await Campaign.findById(id).lean();
-    if (existingCampaign && existingCampaign.segments) {
-      req.body.segments = req.body.segments.map((newSegment, index) => {
-        const existingSegment = existingCampaign.segments.find(
-          (s) => s.name === newSegment.name
-        );
-        return {
-          ...newSegment,
-          // CurrentParticipants'ı koru
-          currentParticipants: existingSegment?.currentParticipants || 0,
-        };
-      });
-    }
+  const campaign = await Campaign.findById(id);
+  if (!campaign) {
+    const err = new Error("Campaign not found.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
   }
 
-  // Admin herhangi bir kampanyayı güncelleyebilir; müşteri sadece kendisininkini
-  const filter =
-    role === "admin" ? { _id: id } : { _id: id, createdUserId: userId };
-  const updated = await Campaign.findOneAndUpdate(
-    filter,
-    { ...req.body, updatedAt: new Date() },
-    { new: true, runValidators: true }
-  );
-
-  if (!updated) {
-    const err = new Error(
-      "You do not have permission to update this campaign or the campaign was not found."
-    );
+  // Yetki kontrolü
+  if (role !== "admin" && campaign.createdUserId.toString() !== userId) {
+    const err = new Error("You do not have permission to update this campaign.");
     err.statusCode = StatusCodes.FORBIDDEN;
     throw err;
   }
 
-  return updated;
+  // ✅ Çoklu dil alanlarını güncelle
+  if (title) {
+    // Eğer mevcut title çoklu dil formatında değilse, önce dönüştür
+    const currentTitle = typeof campaign.title === 'object' 
+      ? campaign.title 
+      : { tr: campaign.title || '', en: campaign.title || '' };
+    
+    campaign.title = {
+      tr: title.tr || currentTitle.tr || '',
+      en: title.en || currentTitle.en || ''
+    };
+  }
+  
+  if (description) {
+    // Eğer mevcut description çoklu dil formatında değilse, önce dönüştür
+    const currentDescription = typeof campaign.description === 'object' 
+      ? campaign.description 
+      : { tr: campaign.description || '', en: campaign.description || '' };
+    
+    campaign.description = {
+      tr: description.tr || currentDescription.tr || '',
+      en: description.en || currentDescription.en || ''
+    };
+  }
+  
+  if (content) {
+    campaign.content = content.map(item => ({
+      itemTitle: {
+        tr: item.itemTitle?.tr || '',
+        en: item.itemTitle?.en || ''
+      },
+      itemDescription: {
+        tr: item.itemDescription?.tr || '',
+        en: item.itemDescription?.en || ''
+      },
+      itemImage: item.itemImage || '',
+      itemVideo: item.itemVideo || '',
+      itemIndex: item.itemIndex || 1
+    }));
+  }
+
+  // ✅ YENİ: Segment currentParticipants korunmalı (istemci tarafından değiştirilemez)
+  if (otherFields.segments && Array.isArray(otherFields.segments)) {
+    otherFields.segments = otherFields.segments.map((newSegment) => {
+      const existingSegment = campaign.segments.find(
+        (s) => s.name === newSegment.name
+      );
+      return {
+        ...newSegment,
+        // CurrentParticipants'ı koru
+        currentParticipants: existingSegment?.currentParticipants || 0,
+        // Segment description'ı çoklu dil formatına çevir (eğer varsa)
+        description: newSegment.description && typeof newSegment.description === 'object' 
+          ? newSegment.description 
+          : newSegment.description 
+            ? { tr: newSegment.description, en: newSegment.description }
+            : existingSegment?.description
+      };
+    });
+  }
+
+  // Diğer alanları güncelle
+  Object.assign(campaign, otherFields);
+  campaign.updatedAt = new Date();
+
+  await campaign.save();
+  return campaign;
 };
 
 // ✅ EKLENDİ: Kampanyayı sil (admin için kalıcı, müşteri için yetki yok)
@@ -653,7 +748,12 @@ exports.remove = async (req) => {
     throw err;
   }
 
-  return { _id: deleted._id, title: deleted.title };
+  // Title artık çoklu dil formatında, varsayılan olarak tr döndür
+  const titleString = typeof deleted.title === 'object' 
+    ? (deleted.title.tr || deleted.title.en || '') 
+    : deleted.title;
+
+  return { _id: deleted._id, title: titleString };
 };
 
 // ✅ EKLENDİ: Kampanya silme isteği (müşteri veya admin)
@@ -687,10 +787,12 @@ exports.getDeleteRequests = async () => {
   return await Campaign.find({ status: "pending_deletion", isActive: false });
 };
 
-// ✅ YENİ: Müşteriye ait kampanyaları getir (rol bazlı filtreleme)
+// ✅ YENİ: Müşteriye ait kampanyaları getir (rol bazlı filtreleme + çoklu dil)
 exports.getByCustomer = async (req) => {
   const customerId = req.user.userId;
   const isAdmin = req.user.role === "admin";
+  // Dil algılama: query param > user preference > Accept-Language header > default
+  const lang = detectLanguage(req);
 
   let filter = { createdUserId: customerId };
   if (!isAdmin) {
@@ -698,8 +800,9 @@ exports.getByCustomer = async (req) => {
     filter.isActive = true;
   }
 
-  const campaigns = await Campaign.find(filter);
-  return campaigns;
+  const campaigns = await Campaign.find(filter).lean();
+  // Her kampanyayı istenen dile göre transform et
+  return campaigns.map(campaign => transformCampaignByLanguage(campaign, lang, 'tr'));
 };
 
 // ✅ YENİ: Tamamlanan kullanıcıları listele
@@ -761,11 +864,16 @@ exports.listCompletedUsers = async (req) => {
     const segment = p.campaignId.segments?.find((s) => s.name === segmentClass);
     const segmentReward = segment?.reward || 0;
 
+    // Title artık çoklu dil formatında, varsayılan olarak tr döndür
+    const campaignTitle = typeof p.campaignId.title === 'object'
+      ? (p.campaignId.title.tr || p.campaignId.title.en || null)
+      : p.campaignId.title || null;
+
     results.push({
       userId: userIdVal,
       userName: p.userId.name || null,
       campaignId: campaignIdVal,
-      campaignTitle: p.campaignId.title || null,
+      campaignTitle: campaignTitle,
       completedAt: p.completedAt,
       segment: segmentClass,
       reward: segmentReward,
@@ -842,9 +950,15 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
         const segmentReward = segment?.reward || 0;
         
         actualEarnings += segmentReward;
+        
+        // Title artık çoklu dil formatında, varsayılan olarak tr döndür
+        const campaignTitle = typeof progress.campaignId.title === 'object'
+          ? (progress.campaignId.title.tr || progress.campaignId.title.en || '')
+          : progress.campaignId.title || '';
+        
         completedCampaignDetails.push({
           campaignId: progress.campaignId._id,
-          title: progress.campaignId.title,
+          title: campaignTitle,
           reward: segmentReward,
           userSegment,
           completedAt: progress.completedAt,
@@ -874,9 +988,15 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
       if (segment && segment.maxParticipants > 0) {
         const segmentReward = segment.reward || 0;
         potentialEarnings += segmentReward;
+        
+        // Title artık çoklu dil formatında, varsayılan olarak tr döndür
+        const campaignTitle = typeof campaign.title === 'object'
+          ? (campaign.title.tr || campaign.title.en || '')
+          : campaign.title || '';
+        
         potentialCampaignDetails.push({
           campaignId: campaign._id,
-          title: campaign.title,
+          title: campaignTitle,
           reward: segmentReward,
           userSegment,
           segmentMaxParticipants: segment.maxParticipants,
@@ -906,9 +1026,14 @@ exports.getUserSegmentEarningsAnalysis = async (req) => {
         const segment = progress.campaignId.segments.find(s => s.name === userSegment);
         const segmentReward = segment?.reward || 0;
 
+        // Title artık çoklu dil formatında, varsayılan olarak tr döndür
+        const campaignTitle = typeof progress.campaignId.title === 'object'
+          ? (progress.campaignId.title.tr || progress.campaignId.title.en || '')
+          : progress.campaignId.title || '';
+
         inProgressCampaigns.push({
           campaignId: progress.campaignId._id,
-          title: progress.campaignId.title,
+          title: campaignTitle,
           reward: segmentReward,
           userSegment,
         });
@@ -995,8 +1120,14 @@ exports.getRewardStatus = async (req) => {
     0
   );
 
+  // Title artık çoklu dil formatında, dil parametresine göre döndür
+  const lang = detectLanguage(req);
+  const campaignTitle = typeof campaign.title === 'object'
+    ? (campaign.title[lang] || campaign.title.tr || campaign.title.en || '')
+    : campaign.title || '';
+
   return {
-    campaignTitle: campaign.title,
+    campaignTitle: campaignTitle,
     segments: segmentStatus,
     totalStats: {
       totalMaxParticipants: totalMax,

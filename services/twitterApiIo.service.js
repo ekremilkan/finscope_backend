@@ -13,14 +13,10 @@ async function checkFollowRelationship({ source_user_name, target_user_name }) {
   const apiKey = requireEnv("TWITTERAPI_IO_KEY");
 
   const res = await axios.get(
-    `${BASE_URL}/twitter/user/check_follow_relationship`,
+    `${BASE_URL}/twitter/user/check_follow_relationship?source_user_name=${source_user_name}&target_user_name=${target_user_name}`,
     {
       headers: { "X-API-Key": apiKey },
-      params: {
-        "source_user_name": source_user_name,
-        "target_user_name": target_user_name,
-      },
-      timeout: 20000,
+      timeout: 10000,
     }
   );
 

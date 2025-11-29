@@ -96,9 +96,8 @@ const segmentSchema = new mongoose.Schema(
       min: 0,
     },
     description: {
-      type: String,
-      trim: true,
-      maxlength: [500, "Açıklama en fazla 500 karakter olabilir"],
+      tr: { type: String, trim: true, maxlength: [500, "Açıklama en fazla 500 karakter olabilir"] },
+      en: { type: String, trim: true, maxlength: [500, "Açıklama en fazla 500 karakter olabilir"] },
     },
     filters: {
       type: [filterSchema],
@@ -114,15 +113,27 @@ const segmentSchema = new mongoose.Schema(
 );
 
 const campaignSchema = new mongoose.Schema({
-  title: { type: String, required: true, maxlength: 100 },
-  description: { type: String, required: true, maxlength: 500 },
+  title: {
+    tr: { type: String, required: true, maxlength: 100 },
+    en: { type: String, required: true, maxlength: 100 }
+  },
+  description: {
+    tr: { type: String, required: true, maxlength: 500 },
+    en: { type: String, required: true, maxlength: 500 }
+  },
 
   content: [
     {
-      itemImage: { type: String, default: "" },
-      itemVideo: { type: String, default: "" },
-      itemTitle: { type: String, default: "", maxlength: 500 },
-      itemDescription: { type: String, default: "", maxlength: 500 },
+      itemImage: { type: String, default: "" }, // Dil bağımsız
+      itemVideo: { type: String, default: "" }, // Dil bağımsız
+      itemTitle: {
+        tr: { type: String, default: "", maxlength: 500 },
+        en: { type: String, default: "", maxlength: 500 }
+      },
+      itemDescription: {
+        tr: { type: String, default: "", maxlength: 500 },
+        en: { type: String, default: "", maxlength: 500 }
+      },
       itemIndex: { type: Number, default: 1, min: 0 },
     },
   ],
@@ -293,7 +304,8 @@ campaignSchema.index({
 // 5. Tag bazlı arama için
 campaignSchema.index({ tags: 1 });
 
-// 6. Full-text search için (title ve description)
-campaignSchema.index({ title: "text", description: "text" });
+// 6. Full-text search için (title ve description) - Her dil için ayrı index
+campaignSchema.index({ "title.tr": "text", "description.tr": "text" });
+campaignSchema.index({ "title.en": "text", "description.en": "text" });
 
 module.exports = mongoose.model("Campaign", campaignSchema);
