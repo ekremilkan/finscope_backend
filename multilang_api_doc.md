@@ -15,6 +15,7 @@
 1. **Request Format Değişti:** Artık `title`, `description` gibi alanlar **çoklu dil objesi** olarak gönderilmeli
 2. **Response Format Değişti:** GET endpoint'lerinde `title`, `description` artık **string** olarak döner (dil parametresine göre)
 3. **Yeni Query Parameter:** Tüm GET endpoint'lerine `?lang=tr` veya `?lang=en` eklenebilir
+4. **🆕 Admin Panel Özelliği:** `GET /campaigns/:id?allLanguages=true` ile tüm dil verilerini çekebilirsiniz (form düzenleme için)
 
 ---
 
@@ -267,6 +268,73 @@ Response formatı `GET /api/v1/campaigns/all` ile aynıdır. Tek bir kampanya ob
 
 ---
 
+#### 🆕 YENİ ÖZELLİK: Admin Panel için Tüm Dil Verileri
+
+**Admin panelde kampanya düzenleme formu için tüm dil verilerine ihtiyaç duyulduğunda:**
+
+```http
+GET /api/v1/campaigns/671234567890abcdef123456?allLanguages=true
+```
+
+**Response Format (Tüm Diller):**
+
+```json
+{
+  "success": true,
+  "error": false,
+  "message": "Kampanya getirildi",
+  "code": 200,
+  "data": {
+    "_id": "671234567890abcdef123456",
+    "title": {
+      "tr": "Kampanya Başlığı",
+      "en": "Campaign Title"
+    },
+    "description": {
+      "tr": "Kampanya açıklaması",
+      "en": "Campaign description"
+    },
+    "content": [{
+      "itemTitle": {
+        "tr": "İçerik Başlığı",
+        "en": "Content Title"
+      },
+      "itemDescription": {
+        "tr": "İçerik açıklaması",
+        "en": "Content description"
+      },
+      "itemImage": "https://example.com/image.jpg",
+      "itemVideo": "https://example.com/video.mp4",
+      "itemIndex": 1
+    }],
+    "segments": [{
+      "name": "PREMIUM",
+      "reward": 1000,
+      "maxParticipants": 100,
+      "currentParticipants": 15,
+      "description": {
+        "tr": "Premium segment açıklaması",
+        "en": "Premium segment description"
+      },
+      "filters": [...]
+    }],
+    "status": "active",
+    "isActive": true,
+    "isAdminAccept": true
+    // ... diğer alanlar
+  }
+}
+```
+
+**⚠️ ÖNEMLİ NOTLAR:**
+
+1. **`allLanguages=true` parametresi:** Bu parametre ile kampanya verisi **transform edilmeden** ham haliyle döner
+2. **Form düzenleme:** Admin panelde kampanya düzenlerken bu parametreyi kullanarak form alanlarını doldurun
+3. **Normal kullanım:** Normal kullanıcılar için `?lang=tr` veya `?lang=en` kullanmaya devam edin
+4. **Geriye dönük uyumluluk:** Bu parametre olmadan normal davranış devam eder (tek dil döner)
+
+---
+
 ### 4. PUT /api/v1/campaigns/:id - Kampanya Güncelleme
 
 #### ❌ ESKİ FORMAT (ARTIK ÇALIŞMAZ)
@@ -507,6 +575,75 @@ GET /api/v1/questions/campaign/671234567890abcdef123456?lang=tr
 
 ---
 
+#### 🆕 YENİ ÖZELLİK: Admin Panel için Tüm Dil Verileri
+
+**Admin panelde soru düzenleme formu için tüm dil verilerine ihtiyaç duyulduğunda:**
+
+```http
+GET /api/v1/questions/campaign/671234567890abcdef123456?allLanguages=true
+```
+
+**Response Format (Tüm Diller):**
+
+```json
+{
+  "success": true,
+  "error": false,
+  "message": "Kampanyaya ait sorular getirildi",
+  "code": 200,
+  "data": [
+    {
+      "_id": "671234567890abcdef123457",
+      "questionText": {
+        "tr": "Soru metni?",
+        "en": "Question text?"
+      },
+      "options": [
+        {
+          "text": {
+            "tr": "Seçenek 1",
+            "en": "Option 1"
+          },
+          "isTrue": true
+        },
+        {
+          "text": {
+            "tr": "Seçenek 2",
+            "en": "Option 2"
+          },
+          "isTrue": false
+        },
+        {
+          "text": {
+            "tr": "Seçenek 3",
+            "en": "Option 3"
+          },
+          "isTrue": false
+        },
+        {
+          "text": {
+            "tr": "Seçenek 4",
+            "en": "Option 4"
+          },
+          "isTrue": false
+        }
+      ],
+      "order": 1,
+      "createdAt": "2024-12-19T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+**⚠️ ÖNEMLİ NOTLAR:**
+
+1. **`allLanguages=true` parametresi:** Bu parametre ile soru verisi **transform edilmeden** ham haliyle döner
+2. **Form düzenleme:** Admin panelde soru düzenlerken bu parametreyi kullanarak form alanlarını doldurun
+3. **Normal kullanım:** Normal kullanıcılar için `?lang=tr` veya `?lang=en` kullanmaya devam edin
+4. **Geriye dönük uyumluluk:** Bu parametre olmadan normal davranış devam eder (tek dil döner)
+
+---
+
 ### 3. PUT /api/v1/questions/:id - Soru Güncelleme
 
 #### ❌ ESKİ FORMAT (ARTIK ÇALIŞMAZ)
@@ -577,6 +714,16 @@ Aşağıdaki endpoint'ler de dil parametresini destekler:
 - `GET /api/v1/questions/customer?lang=en` - Müşteri soruları
 
 **Response formatı:** Tüm endpoint'lerde `questionText` ve `options[].text` alanları dil parametresine göre string olarak döner.
+
+**🆕 Admin Panel için Tüm Dil Verileri:**
+
+Aşağıdaki endpoint'ler `?allLanguages=true` parametresini destekler:
+
+- `GET /api/v1/questions/all?allLanguages=true` - Tüm sorular (Admin, tüm diller)
+- `GET /api/v1/questions/campaign/:campaignId?allLanguages=true` - Kampanya soruları (tüm diller)
+- `GET /api/v1/questions/customer?allLanguages=true` - Müşteri soruları (tüm diller)
+
+**Response formatı:** `allLanguages=true` ile gelen response'larda `questionText` ve `options[].text` alanları `{ tr, en }` formatında döner.
 
 ---
 
@@ -661,6 +808,43 @@ console.log(data.data[0].title); // "Campaign Title" (string - dil parametresine
 console.log(data.data[0].language); // "en" (hangi dil döndürüldüğünü gösterir)
 ```
 
+#### 🆕 Admin Panel için Tüm Dil Verilerini Çekme
+
+**Admin panelde kampanya düzenleme formu için:**
+
+```javascript
+// Admin panel - Kampanya düzenleme formunu doldur
+const fetchCampaignForEdit = async (campaignId) => {
+  // allLanguages=true parametresi ile tüm dil verilerini çek
+  const response = await fetch(
+    `/api/v1/campaigns/${campaignId}?allLanguages=true`,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  const data = await response.json();
+  
+  // Response'da title, description artık { tr, en } formatında
+  console.log(data.data.title); // { tr: "Kampanya Başlığı", en: "Campaign Title" }
+  console.log(data.data.description); // { tr: "Açıklama", en: "Description" }
+  console.log(data.data.content[0].itemTitle); // { tr: "İçerik", en: "Content" }
+  
+  return data.data;
+};
+
+// Kullanım örneği
+const campaign = await fetchCampaignForEdit('671234567890abcdef123456');
+// Form state'ine direkt atanabilir
+setFormData({
+  title: campaign.title, // { tr: "...", en: "..." }
+  description: campaign.description, // { tr: "...", en: "..." }
+  content: campaign.content // Her item'da itemTitle ve itemDescription { tr, en } formatında
+});
+```
+
 ---
 
 ### 3. Dil Parametresi Ekleme
@@ -709,6 +893,27 @@ const fetchQuestions = async (campaignId) => {
     }
   );
   return await response.json();
+};
+
+// 🆕 Admin panel - Soruları düzenleme formu için tüm dil verilerini çek
+const fetchQuestionsForEdit = async (campaignId) => {
+  // allLanguages=true parametresi ile tüm dil verilerini çek
+  const response = await fetch(
+    `/api/v1/questions/campaign/${campaignId}?allLanguages=true`,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  const data = await response.json();
+  
+  // Response'da questionText, options[].text artık { tr, en } formatında
+  console.log(data.data[0].questionText); // { tr: "Soru metni?", en: "Question text?" }
+  console.log(data.data[0].options[0].text); // { tr: "Seçenek 1", en: "Option 1" }
+  
+  return data.data;
 };
 ```
 
@@ -816,6 +1021,221 @@ const CampaignForm = () => {
   );
 };
 ```
+
+#### 🆕 Admin Panel - Kampanya Düzenleme Formu Örneği (React)
+
+```jsx
+import { useState, useEffect } from 'react';
+
+const CampaignEditForm = ({ campaignId }) => {
+  const [formData, setFormData] = useState({
+    title: { tr: '', en: '' },
+    description: { tr: '', en: '' },
+    content: [{
+      itemTitle: { tr: '', en: '' },
+      itemDescription: { tr: '', en: '' },
+      itemImage: '',
+      itemVideo: '',
+      itemIndex: 1
+    }]
+  });
+  const [loading, setLoading] = useState(true);
+
+  // Kampanya verisini çek (tüm dil verileri ile)
+  useEffect(() => {
+    const fetchCampaign = async () => {
+      try {
+        setLoading(true);
+        // ⚠️ ÖNEMLİ: allLanguages=true parametresi ile tüm dil verilerini çek
+        const response = await fetch(
+          `/api/v1/campaigns/${campaignId}?allLanguages=true`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        const data = await response.json();
+        
+        // Response'dan gelen veriyi direkt form state'ine at
+        // title, description, content artık { tr, en } formatında
+        setFormData({
+          title: data.data.title, // { tr: "...", en: "..." }
+          description: data.data.description, // { tr: "...", en: "..." }
+          content: data.data.content.map(item => ({
+            itemTitle: item.itemTitle, // { tr: "...", en: "..." }
+            itemDescription: item.itemDescription, // { tr: "...", en: "..." }
+            itemImage: item.itemImage,
+            itemVideo: item.itemVideo,
+            itemIndex: item.itemIndex
+          }))
+        });
+      } catch (error) {
+        console.error('Kampanya yüklenirken hata:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (campaignId) {
+      fetchCampaign();
+    }
+  }, [campaignId]);
+
+  const handleTitleChange = (lang, value) => {
+    setFormData(prev => ({
+      ...prev,
+      title: { ...prev.title, [lang]: value }
+    }));
+  };
+
+  const handleDescriptionChange = (lang, value) => {
+    setFormData(prev => ({
+      ...prev,
+      description: { ...prev.description, [lang]: value }
+    }));
+  };
+
+  const handleContentItemChange = (index, field, lang, value) => {
+    setFormData(prev => ({
+      ...prev,
+      content: prev.content.map((item, i) => 
+        i === index 
+          ? { 
+              ...item, 
+              [field]: { 
+                ...item[field], 
+                [lang]: value 
+              } 
+            }
+          : item
+      )
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validation: Her iki dil dolu olmalı
+    if (!formData.title.tr || !formData.title.en) {
+      alert('Her iki dil için başlık gerekli!');
+      return;
+    }
+    
+    if (!formData.description.tr || !formData.description.en) {
+      alert('Her iki dil için açıklama gerekli!');
+      return;
+    }
+    
+    // Güncelleme isteği gönder
+    const response = await fetch(`/api/v1/campaigns/${campaignId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(formData)
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+      alert('Kampanya başarıyla güncellendi!');
+    } else {
+      alert('Güncelleme hatası: ' + result.message);
+    }
+  };
+
+  if (loading) {
+    return <div>Yükleniyor...</div>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div>
+        <label>Başlık (TR)</label>
+        <input
+          value={formData.title.tr}
+          onChange={(e) => handleTitleChange('tr', e.target.value)}
+          maxLength={100}
+        />
+      </div>
+      <div>
+        <label>Title (EN)</label>
+        <input
+          value={formData.title.en}
+          onChange={(e) => handleTitleChange('en', e.target.value)}
+          maxLength={100}
+        />
+      </div>
+      
+      <div>
+        <label>Açıklama (TR)</label>
+        <textarea
+          value={formData.description.tr}
+          onChange={(e) => handleDescriptionChange('tr', e.target.value)}
+          maxLength={500}
+        />
+      </div>
+      <div>
+        <label>Description (EN)</label>
+        <textarea
+          value={formData.description.en}
+          onChange={(e) => handleDescriptionChange('en', e.target.value)}
+          maxLength={500}
+        />
+      </div>
+      
+      {formData.content.map((item, index) => (
+        <div key={index}>
+          <h4>İçerik {index + 1}</h4>
+          <div>
+            <label>İçerik Başlığı (TR)</label>
+            <input
+              value={item.itemTitle.tr}
+              onChange={(e) => handleContentItemChange(index, 'itemTitle', 'tr', e.target.value)}
+              maxLength={500}
+            />
+          </div>
+          <div>
+            <label>Content Title (EN)</label>
+            <input
+              value={item.itemTitle.en}
+              onChange={(e) => handleContentItemChange(index, 'itemTitle', 'en', e.target.value)}
+              maxLength={500}
+            />
+          </div>
+          <div>
+            <label>İçerik Açıklaması (TR)</label>
+            <textarea
+              value={item.itemDescription.tr}
+              onChange={(e) => handleContentItemChange(index, 'itemDescription', 'tr', e.target.value)}
+              maxLength={500}
+            />
+          </div>
+          <div>
+            <label>Content Description (EN)</label>
+            <textarea
+              value={item.itemDescription.en}
+              onChange={(e) => handleContentItemChange(index, 'itemDescription', 'en', e.target.value)}
+              maxLength={500}
+            />
+          </div>
+        </div>
+      ))}
+      
+      <button type="submit">Kampanyayı Güncelle</button>
+    </form>
+  );
+};
+```
+
+**⚠️ ÖNEMLİ NOTLAR:**
+
+1. **`allLanguages=true` parametresi:** Form düzenleme için kampanya verisini çekerken bu parametreyi kullanın
+2. **Response formatı:** Bu parametre ile gelen response'da `title`, `description`, `content[].itemTitle`, `content[].itemDescription` alanları `{ tr, en }` formatında gelir
+3. **Form state:** Gelen veriyi direkt form state'ine atayabilirsiniz, ekstra transform işlemi gerekmez
+4. **Güncelleme:** PUT request'inde aynı formatı (`{ tr, en }`) gönderin
 
 #### Question Form Örneği (React)
 
@@ -955,6 +1375,207 @@ const QuestionForm = () => {
 };
 ```
 
+#### 🆕 Admin Panel - Soru Düzenleme Formu Örneği (React)
+
+```jsx
+import { useState, useEffect } from 'react';
+
+const QuestionEditForm = ({ campaignId }) => {
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Soruları çek (tüm dil verileri ile)
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      try {
+        setLoading(true);
+        // ⚠️ ÖNEMLİ: allLanguages=true parametresi ile tüm dil verilerini çek
+        const response = await fetch(
+          `/api/v1/questions/campaign/${campaignId}?allLanguages=true`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        const data = await response.json();
+        
+        // Response'dan gelen veriyi direkt state'e at
+        // questionText, options[].text artık { tr, en } formatında
+        setQuestions(data.data);
+      } catch (error) {
+        console.error('Sorular yüklenirken hata:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (campaignId) {
+      fetchQuestions();
+    }
+  }, [campaignId]);
+
+  const handleQuestionTextChange = (questionIndex, lang, value) => {
+    setQuestions(prev => prev.map((q, i) => 
+      i === questionIndex 
+        ? { ...q, questionText: { ...q.questionText, [lang]: value } }
+        : q
+    ));
+  };
+
+  const handleOptionChange = (questionIndex, optionIndex, lang, value) => {
+    setQuestions(prev => prev.map((q, i) => 
+      i === questionIndex 
+        ? {
+            ...q,
+            options: q.options.map((opt, j) => 
+              j === optionIndex 
+                ? { ...opt, text: { ...opt.text, [lang]: value } }
+                : opt
+            )
+          }
+        : q
+    ));
+  };
+
+  const handleIsTrueChange = (questionIndex, optionIndex) => {
+    setQuestions(prev => prev.map((q, i) => 
+      i === questionIndex 
+        ? {
+            ...q,
+            options: q.options.map((opt, j) => ({
+              ...opt,
+              isTrue: j === optionIndex
+            }))
+          }
+        : q
+    ));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Her soruyu güncelle
+    for (const question of questions) {
+      // Validation: Her iki dil dolu olmalı
+      if (!question.questionText.tr || !question.questionText.en) {
+        alert(`Soru ${question.order} için her iki dil gerekli!`);
+        return;
+      }
+      
+      // Validation: Her seçenek için her iki dil dolu olmalı
+      for (const option of question.options) {
+        if (!option.text.tr || !option.text.en) {
+          alert(`Soru ${question.order} için her seçenekte her iki dil gerekli!`);
+          return;
+        }
+      }
+      
+      // Validation: Sadece bir doğru cevap olmalı
+      const trueCount = question.options.filter(opt => opt.isTrue).length;
+      if (trueCount !== 1) {
+        alert(`Soru ${question.order} için sadece bir doğru cevap seçilmeli!`);
+        return;
+      }
+      
+      // Güncelleme isteği gönder
+      const response = await fetch(`/api/v1/questions/${question._id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          questionText: question.questionText,
+          options: question.options,
+          order: question.order
+        })
+      });
+      
+      const result = await response.json();
+      if (!result.success) {
+        alert(`Soru ${question.order} güncellenirken hata: ${result.message}`);
+        return;
+      }
+    }
+    
+    alert('Tüm sorular başarıyla güncellendi!');
+  };
+
+  if (loading) {
+    return <div>Yükleniyor...</div>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {questions.map((question, questionIndex) => (
+        <div key={question._id} style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #ccc' }}>
+          <h3>Soru {question.order}</h3>
+          
+          <div>
+            <label>Soru Metni (TR)</label>
+            <input
+              value={question.questionText.tr}
+              onChange={(e) => handleQuestionTextChange(questionIndex, 'tr', e.target.value)}
+              maxLength={300}
+            />
+          </div>
+          <div>
+            <label>Question Text (EN)</label>
+            <input
+              value={question.questionText.en}
+              onChange={(e) => handleQuestionTextChange(questionIndex, 'en', e.target.value)}
+              maxLength={300}
+            />
+          </div>
+          
+          {question.options.map((option, optionIndex) => (
+            <div key={optionIndex} style={{ marginTop: '1rem' }}>
+              <h4>Seçenek {optionIndex + 1}</h4>
+              <div>
+                <label>Seçenek Metni (TR)</label>
+                <input
+                  value={option.text.tr}
+                  onChange={(e) => handleOptionChange(questionIndex, optionIndex, 'tr', e.target.value)}
+                />
+              </div>
+              <div>
+                <label>Option Text (EN)</label>
+                <input
+                  value={option.text.en}
+                  onChange={(e) => handleOptionChange(questionIndex, optionIndex, 'en', e.target.value)}
+                />
+              </div>
+              <div>
+                <label>
+                  <input
+                    type="radio"
+                    name={`correctAnswer-${questionIndex}`}
+                    checked={option.isTrue}
+                    onChange={() => handleIsTrueChange(questionIndex, optionIndex)}
+                  />
+                  Doğru Cevap
+                </label>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+      
+      <button type="submit">Tüm Soruları Güncelle</button>
+    </form>
+  );
+};
+```
+
+**⚠️ ÖNEMLİ NOTLAR:**
+
+1. **`allLanguages=true` parametresi:** Form düzenleme için soru verisini çekerken bu parametreyi kullanın
+2. **Response formatı:** Bu parametre ile gelen response'da `questionText` ve `options[].text` alanları `{ tr, en }` formatında gelir
+3. **Form state:** Gelen veriyi direkt form state'ine atayabilirsiniz, ekstra transform işlemi gerekmez
+4. **Güncelleme:** PUT request'inde aynı formatı (`{ tr, en }`) gönderin
+
 ---
 
 ### 5. Axios/API Client Güncellemesi
@@ -992,6 +1613,8 @@ api.interceptors.request.use(config => {
 export const campaignAPI = {
   getAll: () => api.get('/campaigns/all'),
   getById: (id) => api.get(`/campaigns/${id}`),
+  // 🆕 Admin Panel: Tüm dil verilerini çek (form düzenleme için)
+  getByIdForEdit: (id) => api.get(`/campaigns/${id}`, { params: { allLanguages: true } }),
   create: (data) => api.post('/campaigns/create', data),
   update: (id, data) => api.put(`/campaigns/${id}`, data),
   delete: (id) => api.delete(`/campaigns/${id}`)
@@ -1001,6 +1624,8 @@ export const campaignAPI = {
 export const questionAPI = {
   getAll: () => api.get('/questions/all'),
   getByCampaign: (campaignId) => api.get(`/questions/campaign/${campaignId}`),
+  // 🆕 Admin Panel: Tüm dil verilerini çek (form düzenleme için)
+  getByCampaignForEdit: (campaignId) => api.get(`/questions/campaign/${campaignId}`, { params: { allLanguages: true } }),
   getByCustomer: () => api.get('/questions/customer'),
   create: (data) => api.post('/questions/create', data),
   update: (id, data) => api.put(`/questions/${id}`, data),
@@ -1051,6 +1676,24 @@ Eğer çoklu dil formatı doğru gönderilmezse:
 - **Accept-Language header:** Tarayıcı dil ayarı otomatik algılanır
 - **Varsayılan:** Türkçe (`tr`)
 
+### 6. 🆕 Admin Panel Özelliği
+
+**Kampanya Düzenleme Formu için:**
+
+- **Endpoint:** `GET /api/v1/campaigns/:id?allLanguages=true`
+- **Kullanım:** Admin panelde kampanya düzenlerken form alanlarını doldurmak için kullanın
+- **Response:** Tüm dil verileri (`{ tr, en }` formatında) ham haliyle döner
+- **Normal kullanım:** Normal kullanıcılar için `?lang=tr` veya `?lang=en` kullanmaya devam edin
+- **Geriye dönük uyumluluk:** Bu parametre olmadan normal davranış devam eder (tek dil döner)
+
+**Soru Düzenleme Formu için:**
+
+- **Endpoint:** `GET /api/v1/questions/campaign/:campaignId?allLanguages=true`
+- **Kullanım:** Admin panelde kampanya sorularını düzenlerken form alanlarını doldurmak için kullanın
+- **Response:** Tüm dil verileri (`{ tr, en }` formatında) ham haliyle döner
+- **Normal kullanım:** Normal kullanıcılar için `?lang=tr` veya `?lang=en` kullanmaya devam edin
+- **Geriye dönük uyumluluk:** Bu parametre olmadan normal davranış devam eder (tek dil döner)
+
 ---
 
 ## 📊 Özet Tablo
@@ -1060,9 +1703,11 @@ Eğer çoklu dil formatı doğru gönderilmezse:
 | `POST /campaigns/create` | `{ title: { tr, en }, ... }` | `{ title: { tr, en }, ... }` | ❌ |
 | `GET /campaigns/all` | - | `{ title: String, language: String }` | ✅ `?lang=tr` |
 | `GET /campaigns/:id` | - | `{ title: String, language: String }` | ✅ `?lang=tr` |
+| `GET /campaigns/:id?allLanguages=true` | - | `{ title: { tr, en }, ... }` | 🆕 Admin Panel |
 | `PUT /campaigns/:id` | `{ title: { tr, en }, ... }` | `{ title: { tr, en }, ... }` | ❌ |
 | `POST /questions/create` | `{ questionText: { tr, en }, ... }` | `{ questionText: { tr, en }, ... }` | ❌ |
 | `GET /questions/campaign/:id` | - | `{ questionText: String, language: String }` | ✅ `?lang=tr` |
+| `GET /questions/campaign/:id?allLanguages=true` | - | `{ questionText: { tr, en }, ... }` | 🆕 Admin Panel |
 | `PUT /questions/:id` | `{ questionText: { tr, en }, ... }` | `{ questionText: { tr, en }, ... }` | ❌ |
 
 ---
@@ -1078,6 +1723,8 @@ Eğer çoklu dil formatı doğru gönderilmezse:
 - [ ] Validation'da her iki dilin dolu olduğundan emin ol
 - [ ] Dil seçimi için state/context ekle
 - [ ] API client'a dil parametresi ekleme mantığı ekle
+- [ ] 🆕 Admin panel düzenleme formlarında `?allLanguages=true` parametresi kullan
+- [ ] 🆕 Admin panel form state'lerini çoklu dil formatına göre güncelle
 
 ---
 
@@ -1088,6 +1735,16 @@ Sorularınız için backend ekibi ile iletişime geçin.
 ---
 
 **Son Güncelleme:** 2024-12-19  
-**Versiyon:** 1.0.0  
+**Versiyon:** 1.1.0  
 **Durum:** ✅ Production Ready
+
+### 🆕 Versiyon 1.1.0 Güncellemeleri
+
+- **Yeni Özellik:** Admin panel için `?allLanguages=true` parametresi eklendi
+- **Kullanım:** Kampanya ve soru düzenleme formlarında tüm dil verilerini çekmek için kullanın
+- **Endpoint'ler:**
+  - `GET /api/v1/campaigns/:id?allLanguages=true` - Kampanya düzenleme için
+  - `GET /api/v1/questions/campaign/:campaignId?allLanguages=true` - Soru düzenleme için
+  - `GET /api/v1/questions/all?allLanguages=true` - Tüm sorular (Admin)
+  - `GET /api/v1/questions/customer?allLanguages=true` - Müşteri soruları
 

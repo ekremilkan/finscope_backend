@@ -363,10 +363,8 @@ exports.joinCampaign = async (req) => {
       status: "joined",
     });
 
-    // Ödül kotası uygunsa ödül sayacı artar
-    if (eligibleForReward) segment.currentParticipants += 1;
-
-    await campaign.save();
+    // NOT: currentParticipants sadece quiz tamamlandığında (completeQuiz) artırılır
+    // Katılımda artırılmaz çünkü ödül kazanmak için quiz tamamlanmalıdır
   } else {
     // Mevcut progress'i güncelle
     existingProgress.joined = true;
@@ -616,8 +614,6 @@ exports.getAll = async (req) => {
 // ✅ EKLENDİ: Kampanyayı ID'ye göre getir (çoklu dil)
 exports.getById = async (req) => {
   const { id } = req.params;
-  // Dil algılama: query param > user preference > Accept-Language header > default
-  const lang = detectLanguage(req);
   
   const campaign = await Campaign.findById(id);
   if (!campaign) {
@@ -626,6 +622,17 @@ exports.getById = async (req) => {
     throw err;
   }
   
+  // ✅ YENİ: Admin panel için tüm dil verilerini döndür (allLanguages=true query parametresi ile)
+  // Frontend geliştirici form düzenleme için tüm dil verilerine ihtiyaç duyuyor
+  if (req.query && req.query.allLanguages === 'true') {
+    // Ham veriyi döndür (tüm dil verileri ile birlikte)
+    const campaignObj = campaign.toObject ? campaign.toObject() : campaign;
+    return campaignObj;
+  }
+  
+  // Normal kullanım: Sadece istenen dilde transform edilmiş veri döndür
+  // Dil algılama: query param > user preference > Accept-Language header > default
+  const lang = detectLanguage(req);
   return transformCampaignByLanguage(campaign, lang, 'tr');
 };
 

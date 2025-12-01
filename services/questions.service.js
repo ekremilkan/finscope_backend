@@ -85,22 +85,26 @@ exports.create = async (req) => {
 };
 
 exports.getAll = async (req = {}) => {
-  // Dil algılama: query param > user preference > Accept-Language header > default
-  const lang = detectLanguage(req);
-  
   const questions = await Question.find()
     .populate("createdUserId", "name email")
     .sort({ order: 1, createdAt: -1 })
     .lean();
   
-  // Her soruyu istenen dile göre transform et
+  // ✅ YENİ: Admin panel için tüm dil verilerini döndür (allLanguages=true query parametresi ile)
+  // Frontend geliştirici form düzenleme için tüm dil verilerine ihtiyaç duyuyor
+  if (req.query && req.query.allLanguages === 'true') {
+    // Ham veriyi döndür (tüm dil verileri ile birlikte)
+    return questions;
+  }
+  
+  // Normal kullanım: Sadece istenen dilde transform edilmiş veri döndür
+  // Dil algılama: query param > user preference > Accept-Language header > default
+  const lang = detectLanguage(req);
   return questions.map(question => transformQuestionByLanguage(question, lang, 'tr'));
 };
 
 exports.getByCampaign = async (req) => {
   const { campaignId } = req.params;
-  // Dil algılama: query param > user preference > Accept-Language header > default
-  const lang = detectLanguage(req);
   
   if (!campaignId) {
     const err = new Error("Kampanya ID gerekli.");
@@ -122,20 +126,36 @@ exports.getByCampaign = async (req) => {
     .sort({ order: 1, createdAt: -1 })
     .lean();
   
-  // Her soruyu istenen dile göre transform et
+  // ✅ YENİ: Admin panel için tüm dil verilerini döndür (allLanguages=true query parametresi ile)
+  // Frontend geliştirici form düzenleme için tüm dil verilerine ihtiyaç duyuyor
+  if (req.query && req.query.allLanguages === 'true') {
+    // Ham veriyi döndür (tüm dil verileri ile birlikte)
+    return questions;
+  }
+  
+  // Normal kullanım: Sadece istenen dilde transform edilmiş veri döndür
+  // Dil algılama: query param > user preference > Accept-Language header > default
+  const lang = detectLanguage(req);
   return questions.map(question => transformQuestionByLanguage(question, lang, 'tr'));
 };
 
 exports.getByCustomer = async (req) => {
   const createdUserId = req.user.userId;
-  // Dil algılama: query param > user preference > Accept-Language header > default
-  const lang = detectLanguage(req);
   
   const questions = await Question.find({ createdUserId })
     .sort({ order: 1, createdAt: -1 })
     .lean();
   
-  // Her soruyu istenen dile göre transform et
+  // ✅ YENİ: Admin panel için tüm dil verilerini döndür (allLanguages=true query parametresi ile)
+  // Frontend geliştirici form düzenleme için tüm dil verilerine ihtiyaç duyuyor
+  if (req.query && req.query.allLanguages === 'true') {
+    // Ham veriyi döndür (tüm dil verileri ile birlikte)
+    return questions;
+  }
+  
+  // Normal kullanım: Sadece istenen dilde transform edilmiş veri döndür
+  // Dil algılama: query param > user preference > Accept-Language header > default
+  const lang = detectLanguage(req);
   return questions.map(question => transformQuestionByLanguage(question, lang, 'tr'));
 };
 
