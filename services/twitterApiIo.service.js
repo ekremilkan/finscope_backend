@@ -9,18 +9,35 @@ function requireEnv(name) {
   return v;
 }
 
-async function checkFollowRelationship({ source_user_name, target_user_name }) {
+/**
+ * twitter/user/followers
+ * params: userName, pageSize, cursor(optional)
+ */
+async function getUserFollowers({ userName, cursor = null, pageSize = 200 }) {
   const apiKey = requireEnv("TWITTERAPI_IO_KEY");
 
-  const res = await axios.get(
-    `${BASE_URL}/twitter/user/check_follow_relationship?source_user_name=${source_user_name}&target_user_name=${target_user_name}`,
-    {
+  try {
+    const res = await axios.get(`${BASE_URL}/twitter/user/followers`, {
+      params: {
+        userName,
+        pageSize,
+        ...(cursor ? { cursor } : {}),
+      },
       headers: { "X-API-Key": apiKey },
-      timeout: 10000,
-    }
-  );
+      timeout: 15000,
+    });
 
-  return res.data;
+    return res.data;
+  } catch (e) {
+    const status = e?.response?.status;
+    const data = e?.response?.data;
+    console.error("[twitterapi.io] getUserFollowers error:", {
+      status,
+      data,
+      message: e?.message,
+    });
+    throw e;
+  }
 }
 
-module.exports = { checkFollowRelationship };
+module.exports = { getUserFollowers };

@@ -10,37 +10,33 @@ const { verifyCampaignXFollowersOnce } = require("../jobs/verifyCampaignXFollowe
  * - aynı campaign için daha önce koşmadıysa 1 kere doğrular
  */
 function startTwitterFollowVerificationCron() {
-  cron.schedule("*/1 * * * *", async () => {
-    const now = new Date();
-    console.log("[CRON] X follow verification started at", now.toISOString());
-
+  cron.schedule("*/60 * * * *", async () => {
     try {
-      const campaigns = await Campaign.find({ endDate: { $lte: now } })
+      const now = new Date();
+      console.log("[CRON] X follow verification started at", now.toISOString());
+
+      const endedCampaigns = await Campaign.find({
+        endDate: { $lte: now },
+        twitter_url: { $exists: true, $ne: null },
+      })
         .select("_id title endDate twitter_url")
         .lean();
 
-      if (!campaigns.length) {
-        console.log("[CRON] No ended campaigns to verify.");
-        return;
-      }
-
-      for (const c of campaigns) {
-        const already = await VerificationRun.findOne({
-          campaignId: c._id,
-          job: "x_follow_verify",
-        })
-          .select("_id")
-          .lean();
-
-        if (already) {
-          console.log(`[CRON] Campaign ${c._id} already verified, skipping.`);
-          continue;
-        }
-
+      for (const c of endedCampaigns) {
         try {
-          console.log(`[CRON] Verifying X followers for Campaign ${c._id} (${c.title})`);
-          const report = await verifyCampaignXFollowersOnce(c._id, { dryRun: false });
-          console.log("[CRON] Verification report:", report);
+          const already = await VerificationRun.findOne({
+            campaignId: c._id,
+            job: "x_follow_verify",
+          }).lean();
+
+          if (already) continue;
+
+          const report = await verifyCampaignXFollowersOnce(c._id, {
+  dryRun: false,
+  pageSize: 200,
+  maxPages: 25, // örnek: 25 sayfa = 5000 follower tarar
+});
+
 
           await VerificationRun.create({
             campaignId: c._id,
@@ -48,8 +44,13 @@ function startTwitterFollowVerificationCron() {
             report,
             ranAt: new Date(),
           });
+
+          console.log(`[CRON] Verified campaign ${c._id} (${c.title})`, report);
         } catch (e) {
-          console.error(`[CRON] Error verifying campaign ${c._id} (${c.title}):`, e.message);
+          console.error(
+            `[CRON] Error verifying campaign ${c._id} (${c.title}):`,
+            e?.message
+          );
         }
       }
     } catch (e) {

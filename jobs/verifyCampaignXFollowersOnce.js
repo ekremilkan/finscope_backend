@@ -3,15 +3,38 @@ const Campaign = require("../models/campaign.model");
 const User = require("../models/user.model");
 const UserProgress = require("../models/userProgress.model");
 const twitterApi = require("../services/twitterApiIo.service");
-const { normalizeHandle, extractXHandleFromUrl } = require("../utils/socialNormalize");
+const { extractXHandleFromAny } = require("../utils/socialNormalize");
+
+function pickFollowersArray(res) {
+  return Array.isArray(res?.followers) ? res.followers : [];
+}
+function pickNextCursor(res) {
+  return res?.next_cursor ?? res?.nextCursor ?? res?.next ?? res?.cursor ?? null;
+}
+function pickHasNextPage(res) {
+  return res?.has_next_page ?? res?.hasNextPage ?? res?.has_next ?? null;
+}
 
 /**
- * Kampanya bitince 1 kere çalışır:
- * - ödül kazanmış (kota) kullanıcılar için X follow doğrular
- * - UserProgress.eligibleForReward alanını follow sonucuna göre günceller
+ * Kampanya bitince:
+ * 1) Ödül kazanan adayları UserProgress'ten alır
+ * 2) Progress'te twitter.userName boşsa User modelinden çeker ve Progress'e SNAPSHOT yazar
+ * 3) Campaign.twitter_url (target) follower listesinde aday userName var mı kontrol eder (paged)
+ * 4) eligibleForReward + socialVerification.twitter.* alanlarını günceller
  */
-async function verifyCampaignXFollowersOnce(campaignId, { dryRun = false } = {}) {
-  const campaign = await Campaign.findById(campaignId).lean();
+async function verifyCampaignXFollowersOnce(
+  campaignId,
+  {
+    dryRun = false,
+    pageSize = 200,
+    maxPages = 25,
+    debug = true,
+    persistTargetToProgress = true,
+  } = {}
+) {
+  const campaign = await Campaign.findById(campaignId)
+    .select("_id title endDate twitter_url")
+    .lean();
   if (!campaign) throw new Error("Campaign not found");
 
   const now = new Date();
@@ -19,26 +42,23 @@ async function verifyCampaignXFollowersOnce(campaignId, { dryRun = false } = {})
     throw new Error("Campaign has not ended yet");
   }
 
-  const targetHandle = extractXHandleFromUrl(campaign.twitter_url);
+  const targetHandle = extractXHandleFromAny(campaign.twitter_url);
   if (!targetHandle) {
-    throw new Error("Campaign twitter_url invalid, cannot extract X handle");
+    return { campaignId, campaignTitle: campaign.title, skipped: true, reason: "campaign_twitter_url_invalid", dryRun };
   }
 
-  // ✅ ÖDÜL KAZANAN ADAYLAR (completeQuiz ile UYUMLU):
-  // - completed true
-  // - kota kazandı => isPaymentEarned true
-  // - earnedAmount > 0
-  const progresses = await UserProgress.find({
+  // ✅ ÖDÜL KAZANAN ADAYLAR (senin mevcut kriterlerin)
+  const candidates = await UserProgress.find({
     campaignId,
     completed: true,
     isPaymentEarned: true,
     earnedAmount: { $gt: 0 },
+    eligibleForReward: true,
   })
-    .select("_id userId earnedAmount eligibleForReward socialVerification")
+    .select("_id userId eligibleForReward socialVerification.twitter")
     .lean();
 
-  const userIds = progresses.map((p) => p.userId);
-  if (!userIds.length) {
+  if (!candidates.length) {
     return {
       campaignId,
       campaignTitle: campaign.title,
@@ -47,150 +67,218 @@ async function verifyCampaignXFollowersOnce(campaignId, { dryRun = false } = {})
       checked: 0,
       followingTrue: 0,
       noUsername: 0,
+      filledFromUser: 0,
+      pagesFetched: 0,
+      truncatedByMaxPages: false,
+      mode: "followers_paged",
       dryRun,
     };
   }
 
-  const users = await User.find({ _id: { $in: userIds } })
-    .select("_id social.twitter.username")
-    .lean();
+  // 1) Progress'teki username boş olanları tespit et
+  const missingUserIds = [];
+  const progressUserHandle = new Map(); // progressId -> handle
 
-  const userMap = new Map(users.map((u) => [String(u._id), u]));
-  const progressMap = new Map(progresses.map((p) => [String(p.userId), p]));
+  for (const p of candidates) {
+    const existing = extractXHandleFromAny(p?.socialVerification?.twitter?.userName);
+    if (existing) {
+      progressUserHandle.set(String(p._id), existing);
+    } else {
+      missingUserIds.push(p.userId);
+    }
+  }
 
-  let checked = 0;
-  let followingTrue = 0;
-  let noUsername = 0;
+  // 2) Eksikleri User modelinden doldur -> UserProgress'e snapshot yaz
+  let filledFromUser = 0;
+  if (missingUserIds.length) {
+    const users = await User.find({ _id: { $in: missingUserIds } })
+      .select("social.twitter.username")
+      .lean();
 
-  const bulkProgress = [];
-  const bulkUsers = [];
+    const userIdToHandle = new Map();
+    for (const u of users) {
+      const h = extractXHandleFromAny(u?.social?.twitter?.username);
+      if (h) userIdToHandle.set(String(u._id), h);
+    }
 
-  for (const uid of userIds) {
-    const u = userMap.get(String(uid));
-    const p = progressMap.get(String(uid));
-    if (!u || !p) continue;
+    const fillBulk = [];
+    for (const p of candidates) {
+      const pid = String(p._id);
+      if (progressUserHandle.has(pid)) continue;
 
-    const sourceHandle = normalizeHandle(u?.social?.twitter?.username);
+      const h = userIdToHandle.get(String(p.userId)) || null;
+      if (!h) continue;
 
-    // Username yoksa => final eligibility false
-    if (!sourceHandle) {
-      noUsername++;
+      filledFromUser++;
+      progressUserHandle.set(pid, h);
 
       if (!dryRun) {
-        bulkProgress.push({
+        const $set = {
+          "socialVerification.twitter.userName": h,
+        };
+        if (persistTargetToProgress) $set["socialVerification.twitter.targetUserName"] = targetHandle;
+
+        fillBulk.push({
           updateOne: {
             filter: { _id: p._id },
-            update: {
-              $set: {
-                eligibleForReward: false,
-                ineligibleReason: "missing_x_username",
-                "socialVerification.twitter": {
-                  targetUserName: targetHandle,
-                  userName: null,
-                  isFollowing: null,
-                  checkedAt: new Date(),
-                  details: { error: "missing_x_username" },
-                },
-              },
-            },
+            update: { $set },
           },
         });
+      }
+    }
 
-        bulkUsers.push({
-          updateOne: {
-            filter: { _id: u._id },
-            update: { $set: { "social.twitter.isFollowing": false } },
-          },
-        });
+    if (!dryRun && fillBulk.length) {
+      await UserProgress.bulkWrite(fillBulk);
+    }
+  }
+
+  // 3) handle -> progressIds map
+  const handleToProgressIds = new Map();
+  let noUsername = 0;
+
+  for (const p of candidates) {
+    const pid = String(p._id);
+    const h = progressUserHandle.get(pid) || null;
+    if (!h) {
+      noUsername++;
+      continue;
+    }
+    const list = handleToProgressIds.get(h) || [];
+    list.push(pid);
+    handleToProgressIds.set(h, list);
+  }
+
+  const remainingHandles = new Set(handleToProgressIds.keys());
+  const foundProgressIdSet = new Set();
+
+  // 4) Followers sayfa sayfa tara
+  let pagesFetched = 0;
+  let cursor = null;
+  let truncatedByMaxPages = false;
+
+  for (let page = 1; page <= maxPages; page++) {
+    if (remainingHandles.size === 0) break;
+
+    if (debug) {
+      console.log("[XVERIFY] fetching followers", {
+        page,
+        pageSize,
+        cursor,
+        remainingHandles: remainingHandles.size,
+        targetHandle,
+      });
+    }
+
+    const followersRes = await twitterApi.getUserFollowers({
+      userName: targetHandle,
+      pageSize,
+      cursor,
+    });
+
+    pagesFetched++;
+
+    const followersArr = pickFollowersArray(followersRes);
+    for (const f of followersArr) {
+      const followerHandle = extractXHandleFromAny(f?.userName || f?.url || "");
+      if (!followerHandle) continue;
+
+      if (remainingHandles.has(followerHandle)) {
+        const pids = handleToProgressIds.get(followerHandle) || [];
+        for (const pid of pids) foundProgressIdSet.add(pid);
+        remainingHandles.delete(followerHandle);
+        if (remainingHandles.size === 0) break;
+      }
+    }
+
+    const hasNext = pickHasNextPage(followersRes);
+    const nextCursor = pickNextCursor(followersRes);
+
+    if (debug) {
+      console.log("[XVERIFY] page done", {
+        page,
+        gotFollowers: followersArr.length,
+        foundSoFar: foundProgressIdSet.size,
+        remainingHandles: remainingHandles.size,
+        hasNext,
+        nextCursor,
+      });
+    }
+
+    if (hasNext === false) break;
+    if (!nextCursor) break;
+    cursor = nextCursor;
+  }
+
+  if (remainingHandles.size > 0 && pagesFetched >= maxPages) truncatedByMaxPages = true;
+
+  // 5) Progress güncelle
+  let checked = 0;
+  let followingTrue = 0;
+  const bulk = [];
+
+  for (const p of candidates) {
+    const pid = String(p._id);
+    const userHandle = progressUserHandle.get(pid) || null;
+
+    if (!userHandle) {
+      if (!dryRun) {
+        const $set = {
+          eligibleForReward: false,
+          ineligibleReason: "missing_x_username",
+          "socialVerification.twitter.userName": null,
+          "socialVerification.twitter.isFollowing": null,
+          "socialVerification.twitter.checkedAt": now,
+          "socialVerification.twitter.details": { error: "missing_x_username" },
+        };
+        if (persistTargetToProgress) $set["socialVerification.twitter.targetUserName"] = targetHandle;
+
+        bulk.push({ updateOne: { filter: { _id: p._id }, update: { $set } } });
       }
       continue;
     }
 
     checked++;
+    const isFollowing = foundProgressIdSet.has(pid);
+    if (isFollowing) followingTrue++;
 
-    try {
-      const apiRes = await twitterApi.checkFollowRelationship({
-        source_user_name: sourceHandle,
-        target_user_name: targetHandle,
-      });
+    if (!dryRun) {
+      const $set = {
+        eligibleForReward: isFollowing,
+        ineligibleReason: isFollowing ? null : "not_following_x",
+        "socialVerification.twitter.userName": userHandle,
+        "socialVerification.twitter.isFollowing": isFollowing,
+        "socialVerification.twitter.checkedAt": now,
+        "socialVerification.twitter.details": {
+          method: "followers_paged",
+          pageSize,
+          maxPages,
+          pagesFetched,
+          truncatedByMaxPages,
+        },
+      };
+      if (persistTargetToProgress) $set["socialVerification.twitter.targetUserName"] = targetHandle;
 
-      const following = !!apiRes?.data?.following;
-      const followedBy = !!apiRes?.data?.followed_by;
-
-      if (following) followingTrue++;
-
-      if (!dryRun) {
-        bulkProgress.push({
-          updateOne: {
-            filter: { _id: p._id },
-            update: {
-              $set: {
-                // ✅ final eligibility: takip ediyorsa true
-                eligibleForReward: following,
-                ineligibleReason: following ? null : "not_following_x",
-                "socialVerification.twitter": {
-                  targetUserName: targetHandle,
-                  userName: sourceHandle,
-                  isFollowing: following,
-                  checkedAt: new Date(),
-                  details: apiRes,
-                },
-              },
-            },
-          },
-        });
-
-        bulkUsers.push({
-          updateOne: {
-            filter: { _id: u._id },
-            update: { $set: { "social.twitter.isFollowing": following } },
-          },
-        });
-      }
-    } catch (e) {
-      if (!dryRun) {
-        bulkProgress.push({
-          updateOne: {
-            filter: { _id: p._id },
-            update: {
-              $set: {
-                eligibleForReward: false,
-                ineligibleReason: "x_api_error",
-                "socialVerification.twitter": {
-                  targetUserName: targetHandle,
-                  userName: sourceHandle,
-                  isFollowing: false,
-                  checkedAt: new Date(),
-                  details: { error: e?.message || "x_api_error" },
-                },
-              },
-            },
-          },
-        });
-
-        bulkUsers.push({
-          updateOne: {
-            filter: { _id: u._id },
-            update: { $set: { "social.twitter.isFollowing": false } },
-          },
-        });
-      }
+      bulk.push({ updateOne: { filter: { _id: p._id }, update: { $set } } });
     }
   }
 
-  if (!dryRun) {
-    if (bulkProgress.length) await UserProgress.bulkWrite(bulkProgress);
-    if (bulkUsers.length) await User.bulkWrite(bulkUsers);
+  if (!dryRun && bulk.length) {
+    await UserProgress.bulkWrite(bulk);
   }
 
   return {
     campaignId,
     campaignTitle: campaign.title,
     targetHandle,
-    candidates: userIds.length,
+    candidates: candidates.length,
     checked,
     followingTrue,
     noUsername,
+    filledFromUser,
+    pagesFetched,
+    truncatedByMaxPages,
+    remainingHandles: remainingHandles.size,
+    mode: "followers_paged",
     dryRun,
   };
 }

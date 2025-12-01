@@ -3,15 +3,27 @@ const mongoose = require("mongoose");
 const SocialVerificationSchema = new mongoose.Schema(
   {
     twitter: {
-      targetUserName: { type: String, trim: true, lowercase: true, default: null }, // kampanya sahibi
-      userName: { type: String, trim: true, lowercase: true, default: null }, // katılımcı
-      isFollowing: { type: Boolean, default: null }, 
+      userName: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        default: null,
+        maxlength: 15,
+        match: /^[a-z0-9_]{1,15}$/i, // X username kuralı
+      },
+      isFollowing: { type: Boolean, default: null },
       checkedAt: { type: Date, default: null },
-      details: { type: Object, default: null }, 
+      details: { type: Object, default: null },
     },
     telegram: {
-      target: { type: String, trim: true, lowercase: true, default: null }, // kanal/grup vs
-      userName: { type: String, trim: true, lowercase: true, default: null },
+      userName: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        default: null,
+        maxlength: 32,
+        match: /^[a-z0-9_]{3,32}$/i, // Telegram username kaba kural (opsiyonel)
+      },
       isMember: { type: Boolean, default: null },
       checkedAt: { type: Date, default: null },
       details: { type: Object, default: null },
@@ -34,6 +46,7 @@ const userProgressSchema = new mongoose.Schema(
     status: { type: String, enum: ["active", "completed", "abandoned", "joined"], default: "active" },
     segment: { type: String, default: null },
 
+    // ✅ default true tamam: job bu alanı false'a çekerek eler
     eligibleForReward: { type: Boolean, default: true },
     ineligibleReason: { type: String, default: null },
 
@@ -55,6 +68,10 @@ const userProgressSchema = new mongoose.Schema(
 
 // Unique user-campaign
 userProgressSchema.index({ userId: 1, campaignId: 1 }, { unique: true });
+
+// ✅ Doğrulama için faydalı index (cron/job hızlanır)
+userProgressSchema.index({ campaignId: 1, status: 1, eligibleForReward: 1 });
+userProgressSchema.index({ campaignId: 1, completed: 1, isPaymentEarned: 1, earnedAmount: 1 });
 
 // status otomasyonu
 userProgressSchema.pre("save", function (next) {
