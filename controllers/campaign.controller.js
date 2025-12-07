@@ -340,3 +340,24 @@ exports.getRewardStatus = async (req, res) => {
     });
   }
 };
+
+exports.getByStatus = async (req, res) => {
+  try {
+    const data = await campaignService.getByStatus(req);
+
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Kampanyalar statüye göre getirildi",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message || "Kampanyalar getirilirken bir hata oluştu",
+      code: error.statusCode || 500,
+    });
+  }
+};

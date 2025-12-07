@@ -10,34 +10,50 @@ function requireEnv(name) {
 }
 
 /**
- * twitter/user/followers
- * params: userName, pageSize, cursor(optional)
+ * twitter/user/check_follow_relationship
+ * Standardize: isFollowing: boolean, raw: apiBody
  */
-async function getUserFollowers({ userName, cursor = null, pageSize = 200 }) {
+async function checkFollowRelationship({ sourceUserName, targetUserName }) {
   const apiKey = requireEnv("TWITTERAPI_IO_KEY");
 
   try {
-    const res = await axios.get(`${BASE_URL}/twitter/user/followers`, {
-      params: {
-        userName,
-        pageSize,
-        ...(cursor ? { cursor } : {}),
-      },
-      headers: { "X-API-Key": apiKey },
-      timeout: 15000,
-    });
+    const res = await axios.get(
+      `${BASE_URL}/twitter/user/check_follow_relationship`,
+      {
+        params: {
+          source_user_name: sourceUserName,
+          target_user_name: targetUserName,
+        },
+        headers: { "X-API-Key": apiKey },
+        timeout: 10000,
+      }
+    );
 
-    return res.data;
+    const body = res.data;
+
+    // twitterapi.io cevabı genelde:
+    // { data: { following: true, followed_by: false } }
+    const followingRaw =
+      body?.data?.following ??
+      body?.data?.is_following ??
+      body?.following ??
+      body?.isFollowing ??
+      false;
+
+    return {
+      isFollowing: !!followingRaw,
+      raw: body,
+    };
   } catch (e) {
-    const status = e?.response?.status;
-    const data = e?.response?.data;
-    console.error("[twitterapi.io] getUserFollowers error:", {
-      status,
-      data,
+    console.error("[twitterapi.io] checkFollowRelationship error:", {
+      status: e?.response?.status,
+      data: e?.response?.data,
       message: e?.message,
     });
     throw e;
   }
 }
 
-module.exports = { getUserFollowers };
+module.exports = {
+  checkFollowRelationship,
+};

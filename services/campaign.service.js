@@ -825,7 +825,7 @@ exports.listCompletedUsers = async (req) => {
   // Progress, user ve campaign bilgilerini topla
   const progresses = await UserProgress.find(filter)
     .populate("userId", "name email")
-    .populate("campaignId", "title segments") // ✅ YENİ: segments
+    .populate("campaignId", "title segments") // ✅ segments lazım
     .lean();
 
   if (!progresses.length) return [];
@@ -867,30 +867,54 @@ exports.listCompletedUsers = async (req) => {
     }).lean();
     const airdropWallet = airdropWalletDoc?.address || null;
 
-    // ✅ YENİ: Kullanıcının segmentine göre reward hesapla (segments array'den)
+    // ✅ Kullanıcının segmentine göre reward (segments array'den)
     const segment = p.campaignId.segments?.find((s) => s.name === segmentClass);
     const segmentReward = segment?.reward || 0;
 
     // Title artık çoklu dil formatında, varsayılan olarak tr döndür
-    const campaignTitle = typeof p.campaignId.title === 'object'
-      ? (p.campaignId.title.tr || p.campaignId.title.en || null)
-      : p.campaignId.title || null;
+    const campaignTitle =
+      typeof p.campaignId.title === "object"
+        ? p.campaignId.title.tr || p.campaignId.title.en || null
+        : p.campaignId.title || null;
+
+    // ✅ Social verification alanlarını hazırla
+    const twitter = p.socialVerification?.twitter || {};
+    const telegram = p.socialVerification?.telegram || {};
 
     results.push({
       userId: userIdVal,
       userName: p.userId.name || null,
       campaignId: campaignIdVal,
-      campaignTitle: campaignTitle,
+      campaignTitle,
       completedAt: p.completedAt,
       segment: segmentClass,
       reward: segmentReward,
       isPurchase: !!p.isPurchase,
       airdropWallet,
+
+      // ✅ Ödül uygunluğu / sebep
+      eligibleForReward: p.eligibleForReward,
+      ineligibleReason: p.ineligibleReason || null,
+
+      // ✅ Twitter doğrulama bilgileri
+      twitterUserName: twitter.userName || null,
+      twitterIsFollowing:
+        typeof twitter.isFollowing === "boolean"
+          ? twitter.isFollowing
+          : null,
+      twitterCheckedAt: twitter.checkedAt || null,
+
+      // ✅ Telegram doğrulama bilgileri
+      telegramUserName: telegram.userName || null,
+      telegramIsMember:
+        typeof telegram.isMember === "boolean" ? telegram.isMember : null,
+      telegramCheckedAt: telegram.checkedAt || null,
     });
   }
 
   return results;
 };
+
 
 // ✅ YENİ: Ödeme (isPurchase) durumunu güncelle
 exports.updatePurchaseStatus = async (req) => {
@@ -1147,3 +1171,42 @@ exports.getRewardStatus = async (req) => {
     },
   };
 };
+
+// ✅ Yeni: Kampanyaları durumuna göre getir (örneğin status=ended)
+exports.getByStatus = async (req) => {
+  const { status } = req.query;
+
+  let filter = {};
+
+  if (status === "ended") {
+    filter.endDate = { $lt: new Date() }; // bitmiş kampanyalar
+  } else if (status === "active") {
+    filter.startDate = { $lte: new Date() };
+    filter.endDate = { $gte: new Date() };
+    filter.isActive = true;
+  } else if (status === "upcoming") {
+    filter.startDate = { $gt: new Date() };
+  }
+
+  // sadece onaylı kampanyaları döndür (güvenlik için)
+  filter.isAdminAccept = true;
+
+  const campaigns = await Campaign.find(filter)
+    .select("_id title endDate startDate isActive")
+    .sort({ endDate: -1 })
+    .lean();
+
+  // Çoklu dil destekli title dönüşümü
+  const lang = detectLanguage(req);
+  return campaigns.map((c) => ({
+    _id: c._id,
+    title:
+      typeof c.title === "object"
+        ? c.title[lang] || c.title.tr || c.title.en
+        : c.title,
+    startDate: c.startDate,
+    endDate: c.endDate,
+    isActive: c.isActive,
+  }));
+};
+

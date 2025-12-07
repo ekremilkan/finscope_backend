@@ -20,6 +20,12 @@ router.get(
   controller.campaignController.getAll
 );
 
+router.get(
+  "/getByStatus",
+  middlewares.authMiddleware,
+  controller.campaignController.getByStatus
+);
+
 // Kampanyayı ID'ye göre getir (giriş yapmış herkes görebilir)
 router.get(
   "/:id",
@@ -126,5 +132,8 @@ router.get(
   middlewares.authMiddleware,
   controller.campaignController.getRewardStatus
 );
+
+
+
 
 module.exports = { campaign: router };
