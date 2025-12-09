@@ -45,22 +45,22 @@ async function verifyCampaignTelegramMembersOnce(campaignId, options = {}) {
 
     // Eğer boşsa user modelinden çek
     if (!username) {
-  const user = await User.findById(progress.userId).select("telegram social");
-  const foundUsername =
-    user?.telegram?.username ||
-    user?.social?.telegram?.username ||
-    null;
+      const user = await User.findById(progress.userId).select("telegram social");
+      const foundUsername =
+        user?.telegram?.username ||
+        user?.social?.telegram?.username ||
+        null;
 
-  if (foundUsername) {
-    username = foundUsername;
-    if (!dryRun) {
-      await UserProgress.updateOne(
-        { _id: progress._id },
-        { $set: { "socialVerification.telegram.userName": username } }
-      );
+      if (foundUsername) {
+        username = foundUsername;
+        if (!dryRun) {
+          await UserProgress.updateOne(
+            { _id: progress._id },
+            { $set: { "socialVerification.telegram.userName": username } }
+          );
+        }
+      }
     }
-  }
-}
 
     if (!username) {
       if (debug) console.log(`[TELEGRAM VERIFY] ⚠️ User ${progress.userId} has no Telegram username`);
@@ -78,6 +78,12 @@ async function verifyCampaignTelegramMembersOnce(campaignId, options = {}) {
         );
       }
 
+      // ✅ Kullanıcının Telegram tıklama bilgisini alıyoruz
+      const user = await User.findById(progress.userId).select("socialClicks").lean();
+      const hasClickedTelegram = user?.socialClicks?.telegram?.some(
+        (c) => String(c.campaignId) === String(campaignId)
+      );
+
       if (!dryRun) {
         await UserProgress.updateOne(
           { _id: progress._id },
@@ -91,10 +97,12 @@ async function verifyCampaignTelegramMembersOnce(campaignId, options = {}) {
         );
       }
 
+      // ✅ clickedTelegram bilgisi rapora ekleniyor
       reportDetails.push({
         userId: progress.userId,
         username,
         isMember: result.isMember,
+        clickedTelegram: !!hasClickedTelegram,
       });
 
       await new Promise((r) => setTimeout(r, 1200)); // rate limit

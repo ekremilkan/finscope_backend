@@ -5,6 +5,8 @@ const middlewares = require("../middlewares/index");
 
 const router = express.Router();
 
+/* ------------------- 🔹 CREATE & ADMIN OPERATIONS ------------------- */
+
 // Kampanya oluştur (sadece admin ve customer)
 router.post(
   "/create",
@@ -20,56 +22,38 @@ router.get(
   controller.campaignController.getAll
 );
 
+// Silme isteklerini getir (sadece admin)
 router.get(
-  "/getByStatus",
+  "/admin/delete-requests",
   middlewares.authMiddleware,
-  controller.campaignController.getByStatus
+  middlewares.roleMiddleware.requireAdmin,
+  controller.campaignController.getDeleteRequests
 );
 
-// Kampanyayı ID'ye göre getir (giriş yapmış herkes görebilir)
+// Tamamlanan kullanıcıları listele (admin)
 router.get(
-  "/:id",
+  "/admin/completed-users",
   middlewares.authMiddleware,
-  controller.campaignController.getById
+  middlewares.roleMiddleware.requireAdmin,
+  controller.campaignController.listCompletedUsers
 );
 
-// ✅ YENİ: Kullanıcının kampanya progress'ini getir
+// Ödeme (isPurchase) durumunu güncelle (admin)
+router.patch(
+  "/admin/completed-users/:userId/:campaignId/purchase",
+  middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdmin,
+  validation.campaignValidation.validateUpdatePurchase,
+  controller.campaignController.updatePurchaseStatus
+);
+
+/* ------------------- 🔹 USER OPERATIONS ------------------- */
+
+// Kullanıcının segmentine göre potansiyel kazanç analizi
 router.get(
-  "/:id/user-progress",
+  "/user/segment-earnings-analysis",
   middlewares.authMiddleware,
-  controller.campaignController.getUserProgress
-);
-
-// ✅ YENİ: Kampanyaya katıl
-router.post(
-  "/:id/join/:segment?",
-  middlewares.authMiddleware,
-  controller.campaignController.joinCampaign
-);
-
-// ✅ YENİ: Progress güncelle
-router.put(
-  "/:id/progress",
-  middlewares.authMiddleware,
-  validation.campaignValidation.validateUpdateProgress,
-  controller.campaignController.updateProgress
-);
-
-// ✅ YENİ: Quiz tamamla
-router.post(
-  "/:id/complete",
-  middlewares.authMiddleware,
-  validation.campaignValidation.validateCompleteQuiz,
-  controller.campaignController.completeQuiz
-);
-
-// Kampanyayı güncelle (admin ve customer - service'de detay kontrol)
-router.put(
-  "/:id",
-  middlewares.authMiddleware,
-  middlewares.roleMiddleware.requireAdminOrCustomer,
-  validation.campaignValidation.validateUpdateCampaign,
-  controller.campaignController.update
+  controller.campaignController.getUserSegmentEarningsAnalysis
 );
 
 // Müşteriye ait kampanyaları getir
@@ -79,7 +63,80 @@ router.get(
   controller.campaignController.getByCustomer
 );
 
-// Kampanyayı silme isteği (customer için - isActive false yapar)
+/* ------------------- 🔹 CAMPAIGN DETAILS ------------------- */
+
+// Kampanyayı ID'ye göre getir
+router.get(
+  "/:id",
+  middlewares.authMiddleware,
+  controller.campaignController.getById
+);
+
+// Kampanya durumuna göre getir
+router.get(
+  "/getByStatus",
+  middlewares.authMiddleware,
+  controller.campaignController.getByStatus
+);
+
+// Zorunlu kampanyayı getir
+router.get(
+  "/getRequiredCampaign",
+  middlewares.authMiddleware,
+  controller.campaignController.getRequiredCampaign
+);
+
+// Reward durumu
+router.get(
+  "/:id/reward-status",
+  middlewares.authMiddleware,
+  controller.campaignController.getRewardStatus
+);
+
+// Kullanıcının progress bilgisini getir
+router.get(
+  "/:id/user-progress",
+  middlewares.authMiddleware,
+  controller.campaignController.getUserProgress
+);
+
+/* ------------------- 🔹 MAIN LOGIC ROUTES ------------------- */
+
+// ⚠️ ÖNCE /complete - spesifik route, en üste alınmalı
+router.post(
+  "/:id/complete",
+  middlewares.authMiddleware,
+  validation.campaignValidation.validateCompleteQuiz,
+  controller.campaignController.completeQuiz
+);
+
+// Kampanyaya katıl
+router.post(
+  "/:id/join/:segment?",
+  middlewares.authMiddleware,
+  controller.campaignController.joinCampaign
+);
+
+// Progress güncelle
+router.put(
+  "/:id/progress",
+  middlewares.authMiddleware,
+  validation.campaignValidation.validateUpdateProgress,
+  controller.campaignController.updateProgress
+);
+
+/* ------------------- 🔹 UPDATE & DELETE ------------------- */
+
+// Kampanyayı güncelle (admin & customer)
+router.put(
+  "/:id",
+  middlewares.authMiddleware,
+  middlewares.roleMiddleware.requireAdminOrCustomer,
+  validation.campaignValidation.validateUpdateCampaign,
+  controller.campaignController.update
+);
+
+// Silme isteği (customer)
 router.delete(
   "/:id/request-delete",
   middlewares.authMiddleware,
@@ -87,7 +144,7 @@ router.delete(
   controller.campaignController.requestDelete
 );
 
-// Kampanyayı sil (sadece admin - gerçek silme)
+// Kampanyayı sil (sadece admin)
 router.delete(
   "/:id",
   middlewares.authMiddleware,
@@ -95,45 +152,5 @@ router.delete(
   controller.campaignController.remove
 );
 
-// Silme isteklerini getir (sadece admin)
-router.get(
-  "/admin/delete-requests",
-  middlewares.authMiddleware,
-  middlewares.roleMiddleware.requireAdmin,
-  controller.campaignController.getDeleteRequests
-);
-
-// ✅ YENİ: Tamamlanan kullanıcıları listele (admin)
-router.get(
-  "/admin/completed-users",
-  middlewares.authMiddleware,
-  middlewares.roleMiddleware.requireAdmin,
-  controller.campaignController.listCompletedUsers
-);
-
-// ✅ YENİ: Ödeme (isPurchase) durumunu güncelle (admin)
-router.patch(
-  "/admin/completed-users/:userId/:campaignId/purchase",
-  middlewares.authMiddleware,
-  middlewares.roleMiddleware.requireAdmin,
-  validation.campaignValidation.validateUpdatePurchase,
-  controller.campaignController.updatePurchaseStatus
-);
-
-// ✅ YENİ: Kullanıcının segmentine göre potansiyel kazanç analizi
-router.get(
-  "/user/segment-earnings-analysis",
-  middlewares.authMiddleware,
-  controller.campaignController.getUserSegmentEarningsAnalysis
-);
-
-router.get(
-  "/:id/reward-status",
-  middlewares.authMiddleware,
-  controller.campaignController.getRewardStatus
-);
-
-
-
-
+/* ------------------- ✅ EXPORT ------------------- */
 module.exports = { campaign: router };

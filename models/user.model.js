@@ -58,6 +58,10 @@ const userSchema = new mongoose.Schema(
 
     isVerified: { type: Boolean, default: false },
 
+    hasCompletedOnboarding: { type: Boolean, default: false },
+    onboardingCompletedAt: { type: Date, default: null },
+
+
     wallets: [{ type: mongoose.Schema.Types.ObjectId, ref: "Wallet" }],
 
     verificationCode: { type: String, default: null },
@@ -78,6 +82,21 @@ const userSchema = new mongoose.Schema(
 
     // ✅ username'ler burada
     social: { type: SocialSchema, default: () => ({}) },
+
+    socialClicks: {
+  x: [
+    {
+      campaignId: { type: mongoose.Schema.Types.ObjectId, ref: "Campaign" },
+      clickedAt: { type: Date, default: Date.now },
+    },
+  ],
+  telegram: [
+    {
+      campaignId: { type: mongoose.Schema.Types.ObjectId, ref: "Campaign" },
+      clickedAt: { type: Date, default: Date.now },
+    },
+  ],
+},
 
     referralCode: {
       type: String,

@@ -213,6 +213,7 @@ const campaignSchema = new mongoose.Schema({
     default: "upcoming",
   },
   isActive: { type: Boolean, default: true },
+  isRequired: { type: Boolean, default: false },
   isAdminAccept: { type: Boolean, default: false },
 
   createdAt: { type: Date, default: Date.now },

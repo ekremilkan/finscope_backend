@@ -13,11 +13,7 @@ const telegramService = require("./services/telegram.service");
 const router = require("./routers/index");
 const ROUTER_PREFIX = require("./consts/router.prefix.consts");
 const adminSocialVerifyRoutes = require("./routers/adminSocialVerify.routes");
-
-// ✅ CRON import
-const {
-  startTwitterFollowVerificationCron,
-} = require("./cron/twitterFollowVerification.cron");
+const socialClicksRoutes = require("./routers/socialClick.routes");
 
 
 
@@ -83,7 +79,8 @@ app.use(`${config.app.prefix}/questions`, router.questionRouter);
 app.use(`${config.app.prefix}/upload`, router.uploadRouter);
 app.use(`${config.app.prefix}/segments`, router.segmentsRouter);
 app.use(`${config.app.prefix}/user-campaigns`, router.userCampaignRouter);
-app.use(`${config.app.prefix}/admin/social-verify`, adminSocialVerifyRoutes);
+app.use(`${config.app.prefix}/admin/social-verify`, adminSocialVerifyRoutes);  
+app.use(`${config.app.prefix}/social-clicks`, socialClicksRoutes);
 
 
 // ✅ DB bağlan -> server ayağa kalk -> cron başlat
@@ -102,8 +99,5 @@ db.mongooseConnection.connectMongoDB().then(() => {
     console.log(`📊 Kampanya ve Sorular API'leri aktif`);
     console.log(`📁 File upload servisi aktif`);
 
-    // ✅ CRON start
-    startTwitterFollowVerificationCron();
-    console.log("⏱️  Twitter follow verification cron started");
   });
 });

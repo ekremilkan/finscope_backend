@@ -361,3 +361,24 @@ exports.getByStatus = async (req, res) => {
     });
   }
 };
+
+// campaign.controller.js
+exports.getRequiredCampaign = async (req, res) => {
+  try {
+    const data = await campaignService.getRequiredCampaign();
+    res.status(StatusCodes.OK).json({
+      ...baseResponse,
+      data,
+      message: "Required onboarding campaign fetched successfully",
+      code: StatusCodes.OK,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      ...baseResponse,
+      success: false,
+      error: true,
+      message: error.message,
+      code: error.statusCode || 500,
+    });
+  }
+};

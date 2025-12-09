@@ -65,7 +65,7 @@ async function verifyCampaignXFollowersOnce(
 
   if (missingUserIds.length) {
     const users = await User.find({ _id: { $in: missingUserIds } })
-      .select("social.twitter.username")
+      .select("social.twitter.username socialClicks")
       .lean();
 
     for (const u of users) {
@@ -119,6 +119,12 @@ async function verifyCampaignXFollowersOnce(
         console.log(`[XVERIFY] ${handle} → ${isFollowing ? "✅ FOLLOWS" : "❌ DOES NOT FOLLOW"}`);
       }
 
+      // ✅ Kullanıcının User tablosundan clickedX bilgisi alınıyor
+      const user = await User.findById(p.userId).select("socialClicks").lean();
+      const hasClickedX = user?.socialClicks?.x?.some(
+        (c) => String(c.campaignId) === String(campaignId)
+      );
+
       if (!dryRun) {
         bulk.push({
           updateOne: {
@@ -137,10 +143,12 @@ async function verifyCampaignXFollowersOnce(
         });
       }
 
+      // ✅ clickedX bilgisi rapora ekleniyor
       reportDetails.push({
         userId: p.userId,
         username: handle,
         isFollowing,
+        clickedX: !!hasClickedX,
       });
     } catch (err) {
       console.error(`[XVERIFY] Error checking ${handle}:`, err.message);

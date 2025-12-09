@@ -21,253 +21,75 @@ const updateCampaignQuestionCount = async (campaignId) => {
 // ✅ YENİ: Quizi tamamla (Race Condition Fix ile)
 exports.completeQuiz = async (req) => {
   const { id: campaignId } = req.params;
-  const userId = req.user.userId;
-  const { totalTimeSpent } = req.body;
+  const { userId } = req.user;
 
-  // 1. Kullanıcının progress'ini kontrol et
-  const userProgress = await UserProgress.findOne({ userId, campaignId });
-  if (!userProgress || !userProgress.joined) {
-    const err = new Error("You have not joined this campaign.");
-    err.statusCode = StatusCodes.BAD_REQUEST;
-    throw err;
-  }
-  if (userProgress.completed) {
-    const err = new Error("This quiz has already been completed.");
-    err.statusCode = StatusCodes.BAD_REQUEST;
-    throw err;
-  }
-
-  // 2. UserProgress kaydından segment bilgisini al
-  const userSegment = userProgress.segment;
-
-  if (!userSegment) {
-    const err = new Error("Segment information not found. Please join the campaign first.");
-    err.statusCode = StatusCodes.BAD_REQUEST;
-    throw err;
-  }
-
-  // 3. Kampanya ve segment bilgilerini getir (GÜNCEL DURUM)
-  // ÖNEMLİ: Quiz bitirirken güncel kampanya durumunu al
-  const campaign = await Campaign.findById(campaignId).lean();
+  // 🔍 Kampanya kontrolü
+  const campaign = await Campaign.findById(campaignId);
   if (!campaign) {
     const err = new Error("Campaign not found.");
     err.statusCode = StatusCodes.NOT_FOUND;
     throw err;
   }
 
-  const segmentData = campaign.segments?.find((s) => s.name === userSegment);
-  if (!segmentData) {
-    const err = new Error("Segment not found for this campaign.");
-    err.statusCode = StatusCodes.BAD_REQUEST;
+  // 🟢 Zorunlu kampanya (onboarding vb.) tamamlanmışsa
+  if (campaign.isRequired === true) {
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          hasCompletedOnboarding: true,
+          onboardingCompletedAt: new Date(),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      const err = new Error("User not found while completing required campaign.");
+      err.statusCode = StatusCodes.NOT_FOUND;
+      throw err;
+    }
+
+    console.log(`✅ [REQUIRED CAMPAIGN] User ${userId} onboarding completed.`);
+
+    return {
+      success: true,
+      message: "Required campaign completed successfully.",
+      data: {
+        userId: updatedUser._id,
+        hasCompletedOnboarding: updatedUser.hasCompletedOnboarding,
+      },
+    };
+  }
+
+  // 🔵 Normal kampanya süreci
+  const progress = await UserProgress.findOne({ userId, campaignId });
+
+  if (!progress) {
+    // 🧩 Eğer kayıt yoksa otomatik oluşturmak istersen (isteğe bağlı)
+    // await UserProgress.create({ userId, campaignId, completed: true, completedAt: new Date() });
+    const err = new Error("User progress not found for this campaign.");
+    err.statusCode = StatusCodes.NOT_FOUND;
     throw err;
   }
 
-  // Debug: Güncel kota durumunu logla
-  console.log(`🔍 Quiz completion check - Segment: ${userSegment}, Current: ${segmentData.currentParticipants}, Max: ${segmentData.maxParticipants}`);
+  // Güncelle
+  progress.completed = true;
+  progress.completedAt = new Date();
+  await progress.save();
 
-  // 4. MongoDB Transaction başlat (Race Condition Fix)
-  // Not: Transaction sadece replica set veya mongos üzerinde çalışır
-  // Standalone MongoDB'de transaction olmadan devam eder (findOneAndUpdate zaten atomic)
-  let session = null;
-  let useTransaction = false;
+  console.log(`🎯 [CAMPAIGN COMPLETE] User ${userId} completed campaign ${campaignId}`);
 
-  // Development'ta transaction kullanma (standalone MongoDB genellikle kullanılır)
-  // Production'da replica set varsa transaction kullanılabilir
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  
-  if (!isDevelopment) {
-    // Production'da transaction'ı deneyelim (replica set varsa çalışır)
-    try {
-      session = await mongoose.startSession();
-      await session.startTransaction();
-      useTransaction = true;
-    } catch (transactionError) {
-      // Transaction desteklenmiyorsa (standalone MongoDB), transaction olmadan devam et
-      console.warn("⚠️ MongoDB transaction not supported. Continuing without transaction.");
-      console.warn("💡 For production, use MongoDB replica set for full transaction support.");
-      useTransaction = false;
-      if (session) {
-        try {
-          await session.endSession();
-        } catch (e) {
-          // Ignore
-        }
-        session = null;
-      }
-    }
-  } else {
-    // Development mode - transaction kullanma
-    console.log("ℹ️ Development mode: Using atomic operations without transaction.");
-  }
-
-  try {
-    // 5. Atomic işlem: Kota kontrolü ve güncelleme
-    // Sadece kota dolu değilse currentParticipants'ı artır
-    // findOneAndUpdate zaten atomic bir işlem (transaction olmadan da güvenli)
-    const updateOptions = useTransaction ? { new: true, session } : { new: true };
-    
-    // ÖNEMLİ: Atomic işlem - sadece kota dolu değilse güncelle
-    // Bu query sadece currentParticipants < maxParticipants ise çalışır
-    // Eğer currentParticipants >= maxParticipants ise query başarısız olur (null döner)
-    const updatedCampaign = await Campaign.findOneAndUpdate(
-      {
-        _id: campaignId,
-        "segments.name": userSegment,
-        "segments.currentParticipants": { $lt: segmentData.maxParticipants },
-      },
-      { $inc: { "segments.$.currentParticipants": 1 } },
-      updateOptions
-    );
-
-    let wonReward = false;
-    let earnedAmountToSet = 0;
-
-    if (updatedCampaign) {
-      // Güncelleme başarılı oldu - güncellenmiş segment'i kontrol et
-      const updatedSegment = updatedCampaign.segments?.find((s) => s.name === userSegment);
-      
-      if (updatedSegment) {
-        // ÖNEMLİ: Güncelleme sonrası double-check
-        const newCurrentParticipants = updatedSegment.currentParticipants;
-        const maxParticipants = updatedSegment.maxParticipants;
-        
-        console.log(`✅ Update successful - Segment: ${userSegment}, New Current: ${newCurrentParticipants}, Max: ${maxParticipants}`);
-        
-        // Eğer güncelleme sonrası currentParticipants <= maxParticipants ise ödül verilebilir
-        // Ama eğer currentParticipants > maxParticipants ise kota aşıldı (çok nadir race condition)
-        if (newCurrentParticipants <= maxParticipants) {
-          // ✅ Kota başarıyla güncellendi ve kota limiti aşılmadı - ödül kazanıldı
-          wonReward = true;
-          earnedAmountToSet = Number(updatedSegment.reward || segmentData.reward || 0);
-          console.log(`🎉 Reward earned - Segment: ${userSegment}, Amount: ${earnedAmountToSet}`);
-        } else {
-          // ❌ Güncelleme sonrası kota aşıldı (çok nadir bir race condition)
-          // Bu durumda güncellemeyi geri al (currentParticipants'ı 1 azalt)
-          await Campaign.findOneAndUpdate(
-            {
-              _id: campaignId,
-              "segments.name": userSegment,
-            },
-            { $inc: { "segments.$.currentParticipants": -1 } },
-            { new: true }
-          );
-          wonReward = false;
-          earnedAmountToSet = 0;
-          console.log(`⚠️ Quota exceeded after update for segment ${userSegment} (${newCurrentParticipants} > ${maxParticipants}). Reverting update.`);
-        }
-      } else {
-        // Segment bulunamadı (çok nadir)
-        wonReward = false;
-        earnedAmountToSet = 0;
-        console.error(`⚠️ Updated segment not found for ${userSegment}`);
-      }
-    } else {
-      // ❌ Güncelleme başarısız - kota zaten dolu veya başka bir kullanıcı kotayı doldurmuş
-      // findOneAndUpdate sadece currentParticipants < maxParticipants ise çalışır
-      // Eğer null dönerse, demek ki currentParticipants >= maxParticipants (kota dolu)
-      wonReward = false;
-      earnedAmountToSet = 0;
-      console.log(`❌ Quota full for segment ${userSegment} (Current: ${segmentData.currentParticipants} >= Max: ${segmentData.maxParticipants}). User cannot earn reward.`);
-    }
-
-    // 6. UserProgress güncelle (tüm bilgiler tek yerde)
-    const updatedUserProgress = await UserProgress.findByIdAndUpdate(
-      userProgress._id,
-      {
-        completed: true,
-        timeSpent: totalTimeSpent,
-        completedAt: new Date(),
-        earnedAmount: earnedAmountToSet,
-        isPaymentEarned: wonReward,
-        status: "completed",
-        eligibleForReward: wonReward, // Güncel kota durumuna göre
-      },
-      updateOptions
-    );
-
-    // 8. Referral bonus (sadece ödül kazanıldıysa)
-    if (wonReward) {
-      try {
-        const user = await User.findById(userId, "invitedBy").lean();
-        const inviterId = user?.invitedBy;
-        if (inviterId) {
-          const userSegmentDoc = await UserSegment.findOne({
-            userId,
-            chain: "ethereum",
-          })
-            .sort({ asOf: -1 })
-            .lean();
-          const segmentClass = userSegmentDoc?.class || "D";
-          const seg = campaign.segments?.find((s) => s.name === segmentClass);
-          let rewardAmount = Number(seg?.reward || 0);
-          if (!Number.isFinite(rewardAmount)) rewardAmount = 0;
-          const referralBonus = Number((rewardAmount * 0.03).toFixed(2));
-          if (referralBonus > 0) {
-            await User.findByIdAndUpdate(
-              inviterId,
-              {
-                $inc: { referralRewards: referralBonus },
-                $push: {
-                  referralHistory: {
-                    inviteeId: userId,
-                    campaignId,
-                    bonus: referralBonus,
-                    segment: segmentClass,
-                    at: new Date(),
-                  },
-                },
-              },
-              updateOptions
-            );
-          }
-        }
-      } catch (referralErr) {
-        console.error("Referral reward error:", referralErr);
-        // Referral hatası transaction'ı bozmamalı
-      }
-    }
-
-    // 9. Transaction'ı commit et (eğer kullanılıyorsa)
-    if (useTransaction && session) {
-      await session.commitTransaction();
-    }
-
-    // 10. Response döndür
-    return {
+  return {
+    success: true,
+    message: "Campaign completed successfully.",
+    data: {
       campaignId,
-      userId: userId.toString(),
-      completed: true,
-      wonReward: wonReward, // ⚠️ ÖNEMLİ: Frontend için
-      reward: wonReward ? earnedAmountToSet : null,
-      completedAt: updatedUserProgress.completedAt,
-      totalTimeSpent,
-      rewardEligibility: wonReward, // Backward compatibility
-      earnedAmount: earnedAmountToSet,
-      message: wonReward
-        ? "Quiz completed. You are eligible for the reward."
-        : "Quiz completed but quota was filled by another user. You are not eligible for the reward.",
-    };
-  } catch (error) {
-    // Transaction'ı rollback et (eğer kullanılıyorsa)
-    if (useTransaction && session) {
-      try {
-        await session.abortTransaction();
-      } catch (abortErr) {
-        console.error("Error aborting transaction:", abortErr);
-      }
-    }
-    throw error;
-  } finally {
-    // Session'ı kapat (eğer oluşturulduysa)
-    if (session) {
-      try {
-        await session.endSession();
-      } catch (endErr) {
-        console.error("Error ending session:", endErr);
-      }
-    }
-  }
+      completedAt: progress.completedAt,
+    },
+  };
 };
+
 
 // ✅ YENİ: Kullanıcının kampanya ilerlemesini getir
 exports.getUserProgress = async (req) => {
@@ -298,12 +120,15 @@ exports.joinCampaign = async (req) => {
   const { id: campaignId, segment: segmentParam } = req.params;
   const { userId, role } = req.user;
 
-  const VALID_SEGMENTS = new Set(["A", "B", "C", "D"]);
-  console.log(segmentParam);
-  console.log("VALID_SEGMENTS");
-  const fromParam = (segmentParam || "").toString().trim().toUpperCase();
-  const requestedSegment = VALID_SEGMENTS.has(fromParam) ? fromParam : null;
+  // 🔹 Kullanıcıyı bul
+  const user = await User.findById(userId);
+  if (!user) {
+    const err = new Error("User not found.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
 
+  // 🔹 Kampanyayı bul
   const campaign = await Campaign.findById(campaignId);
   if (!campaign) {
     const err = new Error("Campaign not found.");
@@ -316,41 +141,66 @@ exports.joinCampaign = async (req) => {
     throw err;
   }
 
-  const existingProgress = await UserProgress.findOne({ userId, campaignId });
+  // 🔹 Zorunlu kampanyayı tespit et
+  const requiredCampaign = await Campaign.findOne({ isRequired: true, isActive: true });
+  const isRequiredCampaign =
+    requiredCampaign && requiredCampaign._id.toString() === campaignId;
 
-  if (existingProgress && existingProgress.completed) {
-    const err = new Error("You have already completed this campaign.");
+  // 🧠 1️⃣ Eğer kullanıcı zaten onboarding'i tamamladıysa ve tekrar girmeye çalışıyorsa:
+  if (campaign.isRequired && user.hasCompletedOnboarding) {
+    const err = new Error("ONBOARDING_ALREADY_COMPLETED");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
 
-  const userSegmentClass = requestedSegment;
-  const segment = campaign.segments.find((s) => s.name === userSegmentClass);
-  console.log(userSegmentClass);
-  console.log(campaign.id);
-  console.log(segment);
-  if (!segment) {
-    const err = new Error(
-      `Your wallet does not fit the segments of this campaign.`
+  // 🧠 2️⃣ Eğer zorunlu kampanya değilse ama onboarding yapılmadıysa: izin yok
+  if (!isRequiredCampaign && requiredCampaign && !user.hasCompletedOnboarding) {
+    const err = new Error("ONBOARDING_REQUIRED");
+    err.statusCode = StatusCodes.FORBIDDEN;
+    throw err;
+  }
+
+  // 🟢 Eğer zorunlu kampanyaysa, UserProgress’e kayıt oluşturma!
+  if (isRequiredCampaign) {
+    await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          hasJoinedOnboarding: true,
+          onboardingJoinedAt: new Date(),
+        },
+      },
+      { new: true }
     );
+
+    console.log(`✅ [REQUIRED CAMPAIGN JOINED] User ${userId} joined onboarding campaign`);
+
+    return {
+      campaignId,
+      userId,
+      joined: true,
+      segment: "ALL",
+      message: "User joined required campaign (UserProgress not created).",
+    };
+  }
+
+  // 🔹 Normal kampanyalar (önceki hali aynı kalıyor)
+  const VALID_SEGMENTS = new Set(["A", "B", "C", "D", "ALL"]);
+  const fromParam = (segmentParam || "").toString().trim().toUpperCase();
+  const userSegmentClass = VALID_SEGMENTS.has(fromParam) ? fromParam : "A";
+
+  const segment = campaign.segments.find((s) => s.name === userSegmentClass);
+  if (!segment) {
+    const err = new Error("Your wallet does not fit the segments of this campaign.");
     err.statusCode = StatusCodes.BAD_REQUEST;
     throw err;
   }
 
-  // ---- ÖDÜL UYGUNLUĞU (maxParticipants) ----
-  let eligibleForReward;
-  if (existingProgress && existingProgress.eligibleForReward !== undefined) {
-    eligibleForReward = !!existingProgress.eligibleForReward;
-  } else if (role === "admin") {
-    eligibleForReward = true;
-  } else {
-    const isRewardLimited = segment.maxParticipants > 0;
-    const isRewardFullOrOver =
-      isRewardLimited && segment.currentParticipants >= segment.maxParticipants;
-    eligibleForReward = !isRewardFullOrOver;
-  }
+  const isRewardLimited = segment.maxParticipants > 0;
+  const eligibleForReward =
+    !isRewardLimited || segment.currentParticipants < segment.maxParticipants;
 
-  // ---- UserProgress oluştur/güncelle (SADECE İLK KATILIMDA) ----
+  const existingProgress = await UserProgress.findOne({ userId, campaignId });
   if (!existingProgress) {
     await UserProgress.create({
       userId,
@@ -362,47 +212,28 @@ exports.joinCampaign = async (req) => {
       eligibleForReward,
       status: "joined",
     });
-
-    // NOT: currentParticipants sadece quiz tamamlandığında (completeQuiz) artırılır
-    // Katılımda artırılmaz çünkü ödül kazanmak için quiz tamamlanmalıdır
   } else {
-    // Mevcut progress'i güncelle
     existingProgress.joined = true;
-    if (!existingProgress.startedAt) {
-      existingProgress.startedAt = new Date();
-    }
-    if (!existingProgress.joinedAt) {
-      existingProgress.joinedAt = new Date();
-    }
-    if (!existingProgress.segment) {
-      existingProgress.segment = userSegmentClass;
-    }
-    if (existingProgress.eligibleForReward === undefined) {
-      existingProgress.eligibleForReward = eligibleForReward;
-    }
+    existingProgress.segment = userSegmentClass;
+    existingProgress.eligibleForReward = eligibleForReward;
+    existingProgress.status = "joined";
     await existingProgress.save();
   }
 
   return {
     campaignId,
-    userId: userId.toString(),
+    userId,
     joined: true,
     segment: userSegmentClass,
     rewardEligibility: eligibleForReward,
-    rewardQuota: {
-      current: segment.currentParticipants,
-      max: segment.maxParticipants,
-      available: Math.max(
-        segment.maxParticipants - segment.currentParticipants,
-        0
-      ),
-    },
-    reward: eligibleForReward ? segment.reward : null,
-    message: eligibleForReward
-      ? "Joined. You are eligible for the reward."
-      : "Joined. You can take the quiz, but you are not eligible for the reward (reward quota full).",
+    message: "Joined campaign successfully.",
   };
 };
+
+
+
+
+
 
 // ✅ YENİ: İlerlemeyi güncelle
 exports.updateProgress = async (req) => {
@@ -1210,3 +1041,16 @@ exports.getByStatus = async (req) => {
   }));
 };
 
+exports.getRequiredCampaign = async () => {
+  const requiredCampaign = await Campaign.findOne({ isRequired: true }).select(
+    "_id title description isActive startDate endDate"
+  );
+
+  if (!requiredCampaign) {
+    const err = new Error("Required onboarding campaign not found.");
+    err.statusCode = StatusCodes.NOT_FOUND;
+    throw err;
+  }
+
+  return requiredCampaign;
+};
